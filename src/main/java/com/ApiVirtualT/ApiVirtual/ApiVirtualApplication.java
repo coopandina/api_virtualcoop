@@ -12,5 +12,4 @@ public class ApiVirtualApplication   {
 		SpringApplication.run(ApiVirtualApplication.class, args);
 	}
 
-
 }

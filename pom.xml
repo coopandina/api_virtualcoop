@@ -12,7 +12,7 @@
 	<artifactId>ApiVirtual</artifactId>
 	<version>0.0.1</version>
 	<name>ApiVirtual</name>
-	<packaging>war</packaging>
+<!--	<packaging>war</packaging>-->
 	<description>Proyecto ApiVirtualCoop</description>
 	<url/>
 	<licenses>

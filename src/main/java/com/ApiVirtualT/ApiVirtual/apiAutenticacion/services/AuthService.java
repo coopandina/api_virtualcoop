@@ -44,7 +44,7 @@ public class AuthService {
         String mensajeValBlancos = validarCredencialesBlanco(request);
         if (mensajeValBlancos != null) {
             allData.put("message", mensajeValBlancos);
-            allData.put("status", "AA03");
+            allData.put("status", "AA01");
             allData.put("errors", "No se puede enviar campos con espacios en blanco. ");
             allDataList.add(allData);
             response.put("AllData", allDataList);
@@ -54,7 +54,7 @@ public class AuthService {
         String mensajeUsarioNoSerCorreo = usarioNoSerCorreo(request);
         if (mensajeUsarioNoSerCorreo != null) {
             allData.put("message", mensajeUsarioNoSerCorreo);
-            allData.put("status", "AA03");
+            allData.put("status", "AA02");
             allData.put("errors", "No se acepta correos electronicos en el usuario. ");
             allDataList.add(allData);
             response.put("AllData", allDataList);
@@ -96,7 +96,7 @@ public class AuthService {
         }else{
 
             allData.put("message", "Por favor, no utilice la identificación como si fuera un nombre de usuario.");
-            allData.put("status", "AA01");
+            allData.put("status", "AA04");
             allData.put("errors", "Se debe utilizar el nombre de usuario en lugar de la cédula de identificación.");
             allDataList.add(allData);
             response.put("AllData", allDataList);
@@ -179,7 +179,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         if (results.isEmpty()) {
             response.put("success", false);
             response.put("message", "El usuario no existe o las credenciales son incorrectas.");
-            response.put("status", "AA01");
+            response.put("status", "AA05");
             response.put("errors", "Usuario no encontrado.");
             return response;
         }
@@ -219,7 +219,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
             if(passDec.length() <= 4){
                 response.put("success", false);
                 response.put("message", "Debe cambiar su contraseña o es contraseña temporal");
-                response.put("status", "AA08");
+                response.put("status", "AA06");
                 response.put("errors", "Usuario con contraseña temporal.");
                 return response;
             }
@@ -230,7 +230,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                         if ("0".equals(cliacBloq.trim()) || "0".equals(clien_estado.trim())) {
                             response.put("success", false);
                             response.put("message", "El usuario está bloqueado o no está activo.");
-                            response.put("status", "AA08");
+                            response.put("status", "AA07");
                             response.put("errors", "Usuario bloqueado.");
                             return response;
                         }
@@ -291,7 +291,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                         }
                         response.put("success", false);
                         response.put("message", "Se alcanzó el límite de intentos.");
-                        response.put("status", "AA09");
+                        response.put("status", "AA08");
                         response.put("errors", "Usuario bloqueado por demasiados intentos fallidos.");
                         return response;
 
@@ -328,7 +328,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         }
         response.put("success", false);
         response.put("message", "Credenciales incorrectas.");
-        response.put("status", "AA02");
+        response.put("status", "AA12");
         response.put("errors", "Contraseña incorrecta o usuario no encontrado.");
         return response;
 
@@ -353,7 +353,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         // Validar coincidencia de la nueva contraseña y su confirmación
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
             allData.put("message", "La nueva contraseña y su confirmación no coinciden.");
-            allData.put("status", "AA04");
+            allData.put("status", "AA09");
             allData.put("errors", "No se aceptan contraseñas diferentes en el cambio de contraseña. ");
             allDataList.add(allData);
             response.put("AllData", allDataList);
@@ -363,7 +363,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         // Validar longitud de la nueva contraseña
         if (request.getNewPassword().length() <= 4) {
             allData.put("message", "La contraseña debe tener al menos 4 caracteres. Por favor, inténtelo nuevamente.");
-            allData.put("status", "AA04");
+            allData.put("status", "AA10");
             allData.put("errors", "No se aceptan contraseña menores a 4 caractreres ");
             allDataList.add(allData);
             response.put("AllData", allDataList);
@@ -371,7 +371,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         }
             if (request.getNewPassword().isEmpty()) {
                 allData.put("message", "No puede dejar espacios en blanco en la nueva contraseña.");
-                allData.put("status", "AA04");
+                allData.put("status", "AA11");
                 allData.put("errors", "No se aceptan espacios en blanco en la contraseña. ");
                 allDataList.add(allData);
                 response.put("AllData", allDataList);
@@ -380,7 +380,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
             }
             if (request.getConfirmPassword().isEmpty()) {
                 allData.put("message", "No puede dejar espacios en blanco en la confirmacion de la contraseña.");
-                allData.put("status", "AA04");
+                allData.put("status", "AA12");
                 allData.put("errors", "No se aceptan espacios en blanco en la contraseña. ");
                 allDataList.add(allData);
                 response.put("AllData", allDataList);
@@ -390,7 +390,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
 
             // Retornar éxito si el cambio fue realizado
             allData.put("message", "Contraseña actualizada exitosamente.");
-            allData.put("status", "AA05");
+            allData.put("status", "AA13");
             allDataList.add(allData);
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.OK);
