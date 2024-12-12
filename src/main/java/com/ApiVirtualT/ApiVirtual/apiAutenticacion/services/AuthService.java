@@ -1,4 +1,5 @@
 package com.ApiVirtualT.ApiVirtual.apiAutenticacion.services;
+import com.ApiVirtualT.ApiVirtual.apiAutenticacion.JWT.JwtUtil;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.UserCredentials;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -80,9 +81,11 @@ public class AuthService {
             Map<String, Object> validacion = valida_LoginBDD(usuario, contraUser);
 
             if (Boolean.TRUE.equals(validacion.get("success"))) {
+                String token = JwtUtil.generateToken(usuario);
+
                 allData.put("message", "Acceso concedido.");
                 allData.put("status", "AA00");
-                allData.put("token", generarTokenSeguro());
+                allData.put("token", token);
 
 
             } else {
@@ -250,11 +253,14 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                                 String IpIngresoLogin = localIP();
                                 String FechaIngresoLogin = obtenerHoraActual();
 
+
+
+
                                 SendSMS sms = new SendSMS();
                                 String mensajeSMSLogin = "Registro de Acceso a Banca Movil. Att, Cooperativa Andina. "+FechaIngresoLogin + "";
                                 sms.sendSMS(clienNumero,"1050", mensajeSMSLogin);
-                            sendEmail enviarCorreo =  new sendEmail();
-                            enviarCorreo.sendEmailInicioSesion(clienApellidos, clienNombres, FechaIngresoLogin, IpIngresoLogin, clienEmail );
+                                sendEmail enviarCorreo =  new sendEmail();
+                                enviarCorreo.sendEmailInicioSesion(clienApellidos, clienNombres, FechaIngresoLogin, IpIngresoLogin, clienEmail );
 
                             }
                         }
