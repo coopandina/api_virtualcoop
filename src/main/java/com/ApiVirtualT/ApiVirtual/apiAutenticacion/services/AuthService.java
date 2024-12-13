@@ -34,7 +34,7 @@ public class AuthService {
      * Funcion para validar login antes de consultar bdd
         */
 
-    private int intentosRealizados = 0;
+    private int intentosRealizados = 0, intentosRealizadoToken = 0;
     public ResponseEntity<Map<String, Object>> accesslogin( UserCredentials  request) {
         try {
         Map<String, Object> allData = new HashMap<>();
@@ -81,12 +81,10 @@ public class AuthService {
             Map<String, Object> validacion = valida_LoginBDD(usuario, contraUser);
 
             if (Boolean.TRUE.equals(validacion.get("success"))) {
-                String token = JwtUtil.generateToken(usuario);
-
                 allData.put("message", "Acceso concedido.");
                 allData.put("status", "AA00");
+                String token = (String) validacion.get("token");
                 allData.put("token", token);
-
 
             } else {
 
@@ -238,29 +236,98 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                             return response;
                         }
                         else{
-                            String sqlDatosCorreo = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul FROM cnxclien, cnxcliac " +
+                            String sqlDatosCorreo = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
                                     "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
                             Query resulDatosCorreo = entityManager.createNativeQuery(sqlDatosCorreo);
                             resulDatosCorreo.setParameter("username", user);
 
                             List<Object[]> results2 = resulDatosCorreo.getResultList();
                             for (Object[] row2 : results2) {
-                                String clienApellidos =  row2[0].toString().trim();
-                                String clienNombres =  row2[1].toString().trim();
+                                String clienApellidos = row2[0].toString().trim();
+                                String clienNombres = row2[1].toString().trim();
                                 String clienEmail = row2[2].toString().trim();
                                 String clienNumero = row2[3].toString().trim();
-                                System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR "+ clienNumero);
+                                String clienCedula = row2[4].toString().trim();
+                                String clienCodClie = row2[5].toString().trim();
+                                System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
                                 String IpIngresoLogin = localIP();
                                 String FechaIngresoLogin = obtenerHoraActual();
+                                String tokenTemp = codigoAleatorioTemp();
+
+                                String sqlBloqUser = null;
+                                if (intentosRealizadoToken >= 3) {
+                                    sqlBloqUser = "UPDATE cnxcliac SET cliac_ctr_bloq = :bloqueo WHERE cliac_usu_virtu = :username";
+                                    Query resultBloqUser = entityManager.createNativeQuery(sqlBloqUser);
+                                    resultBloqUser.setParameter("bloqueo", "0");
+                                    resultBloqUser.setParameter("username", cliacUsuVirtu);
+                                    //MANDAR CORREO DE BLOQUEO
+                                    try {
+                                        // Ejecutar la actualización
+                                        int rowsUpdated = resultBloqUser.executeUpdate();
+                                        if (rowsUpdated > 0) {
+                                            System.out.println("Usuario bloqueado exitosamente en la base de datos.");
+                                            intentosRealizados = 0;
+                                        } else {
+                                            System.out.println("No se encontró al usuario para bloquear.");
+                                        }
+                                    } catch (Exception e) {
+                                        System.err.println("Error al bloquear el usuario en la base de datos: " + e.getMessage());
+                                        response.put("success", false);
+                                        response.put("message", "Error al intentar bloquear el usuario.");
+                                        response.put("status", "AA16");
+                                        response.put("errors", e.getMessage());
+                                        return response;
+                                    }
+                                    response.put("success", false);
+                                    response.put("message", "Se alcanzó el límite de intentos de envio de token.");
+                                    response.put("status", "AA015");
+                                    response.put("errors", "Usuario bloqueado por demasiados intentos fallidos token.");
+                                    return response;
+
+                                } else {
+                                    intentosRealizadoToken++;
+                                    System.out.println(intentosRealizadoToken);
+                                    SendSMS smsCodigoTemp = new SendSMS();
+                                    String mensajeTemp = "Estimado socio(a), el codigo de seguridad de tu transaccion es: " + tokenTemp + " Tiempo duracion 4 minutos. COAC ANDINA: " + FechaIngresoLogin;
+                                    System.out.println(mensajeTemp);
+                                    smsCodigoTemp.sendSMS(clienNumero, "1150", mensajeTemp);
+                                    System.out.println(tokenTemp);
+                                    sendEmail enviaCorreoToken = new sendEmail();
+
+                                    enviaCorreoToken.sendEmailTokenTemp(clienApellidos, clienNombres, FechaIngresoLogin, clienEmail, tokenTemp);
+                                    String sqlUpdateEstado = "UPDATE vircodaccess SET codaccess_estado = '0' WHERE codaccess_cedula = :codaccess_cedula AND codaccess_estado = '1'";
+
+                                    Query resultUpdateEstado = entityManager.createNativeQuery(sqlUpdateEstado);
+                                    resultUpdateEstado.setParameter("codaccess_cedula", clienCedula);  // o cliacUsuVirtu, dependiendo de qué campo estés usando para identificar al usuario
+                                    resultUpdateEstado.executeUpdate();
+
+                                    String sqlInsertToken = "INSERT INTO vircodaccess (codaccess_cedula, codaccess_usuario, codaccess_codigo_temporal, codsms_codigo, codaccess_estado, codaccess_fecha) VALUES (:codaccess_cedula, :codaccess_usuario, :codaccess_codigo_temporal, :codsms_codigo, :codaccess_estado, :codaccess_fecha)";
+
+                                    Query resultInsertTokenAcceso = entityManager.createNativeQuery(sqlInsertToken);
+
+                                    resultInsertTokenAcceso.setParameter("codaccess_cedula", clienCedula);
+                                    resultInsertTokenAcceso.setParameter("codaccess_usuario", cliacUsuVirtu);
+                                    resultInsertTokenAcceso.setParameter("codaccess_codigo_temporal", tokenTemp);
+                                    resultInsertTokenAcceso.setParameter("codsms_codigo", 1);
+                                    resultInsertTokenAcceso.setParameter("codaccess_estado", "1");
+                                    resultInsertTokenAcceso.setParameter("codaccess_fecha", FechaIngresoLogin);
+
+                                    resultInsertTokenAcceso.executeUpdate();
+
+                                    String token = JwtUtil.generateToken(cliacUsuVirtu, clienCedula, clienCodClie);
+                                    response.put("success", true);
+                                    response.put("message", "Acceso concedido.");
+                                    response.put("status", "AA00");
+                                    response.put("token", token);  // Incluir el token en la respuesta
 
 
+                                }
 
-
-                                SendSMS sms = new SendSMS();
-                                String mensajeSMSLogin = "Registro de Acceso a Banca Movil. Att, Cooperativa Andina. "+FechaIngresoLogin + "";
-                                sms.sendSMS(clienNumero,"1050", mensajeSMSLogin);
-                                sendEmail enviarCorreo =  new sendEmail();
-                                enviarCorreo.sendEmailInicioSesion(clienApellidos, clienNombres, FechaIngresoLogin, IpIngresoLogin, clienEmail );
+//                                SendSMS sms = new SendSMS();
+//                                String mensajeSMSLogin = "Registro de Acceso a Banca Movil. Att, Cooperativa Andina. "+FechaIngresoLogin + "";
+//                                sms.sendSMS(clienNumero,"1150", mensajeSMSLogin);
+//                                sendEmail enviarCorreo =  new sendEmail();
+//                                enviarCorreo.sendEmailInicioSesion(clienApellidos, clienNombres, FechaIngresoLogin, IpIngresoLogin, clienEmail );
 
                             }
                         }
@@ -442,11 +509,11 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         int randomNumber = random.nextInt((max - min) + 1) + min;
         return String.valueOf(randomNumber);
     }
-    public static String generarTokenSeguro() {
-        SecureRandom secureRandom = new SecureRandom();
-        byte[] token = new byte[32]; // 256 bits = 32 bytes
-        secureRandom.nextBytes(token);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(token);
+    public String codigoAleatorioTemp() {
+        // Genera un número aleatorio de 6 dígitos
+        Random random = new Random();
+        int numeroAleatorio = 100000 + random.nextInt(900000); // Asegura 6 dígitos
+        return String.valueOf(numeroAleatorio);
     }
+}
 
-    }
