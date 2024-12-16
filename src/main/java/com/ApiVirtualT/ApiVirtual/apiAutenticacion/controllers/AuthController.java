@@ -1,5 +1,6 @@
 package com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers;
 
+import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.CodSegurdiad;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.UserCredentials;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.services.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +26,10 @@ public class AuthController {
     @PostMapping(value = "login")
     public ResponseEntity<Map<String, Object>>accessLogin(@RequestBody UserCredentials request) {
 
-
         return authService.accesslogin(request);
     }
+
+
 
     /**
      * Endpoint para cambio de contraseña

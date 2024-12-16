@@ -43,12 +43,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .parseClaimsJws(token)
                     .getBody();
 
-            // Extraer el usuario del token y configurar el contexto de seguridad
-            String username = claims.getSubject();
-            if (username != null) {
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(username, null, new ArrayList<>());
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+            // Extraer el subject del token
+            String subject = claims.getSubject(); // "Aclascano21,1750442145,25310"
+            if (subject != null) {
+                // Dividir el subject en sus partes
+                String[] parts = subject.split(",");
+                if (parts.length == 3) {
+                    String CliacUsuVirtu = parts[0];  // Usuario (Aclascano21)
+                    String ClienIdenti = parts[1];   // Número de cédula (1750442145)
+                    String numSocio = parts[2];      // Número de socio (25310)
+
+                    // Configurar el contexto de seguridad con el usuario
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(CliacUsuVirtu, null, new ArrayList<>());
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                    // Opcional: Guardar los valores en el request para usarlos en los controladores
+                    request.setAttribute("CliacUsuVirtu", CliacUsuVirtu);
+                    request.setAttribute("ClienIdenti", ClienIdenti);
+                    request.setAttribute("numSocio", numSocio);
+                } else {
+                    throw new JwtException("El formato del token no es válido");
+                }
             }
 
         } catch (JwtException e) {
@@ -59,5 +75,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response); // Continuar con el filtro
     }
+
 }
 
