@@ -21,7 +21,7 @@ public class SecurityConfig {
         return http
                 .csrf(AbstractHttpConfigurer::disable) // Deshabilitar CSRF completamente
                 .authorizeHttpRequests(authRequest -> authRequest
-                        .requestMatchers("/auth/**").permitAll() // Permitir acceso público a /auth/login
+                        .requestMatchers("/auth/**").permitAll()
                         .anyRequest().authenticated() // Requerir autenticación para las demás rutas
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class) // Filtro JWT
