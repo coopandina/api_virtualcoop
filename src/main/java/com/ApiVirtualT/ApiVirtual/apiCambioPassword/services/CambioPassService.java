@@ -1,9 +1,9 @@
-package com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.services;
+package com.ApiVirtualT.ApiVirtual.apiCambioPassword.services;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.JWT.JwtUtil;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.CodSegurdiad;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.CambioContrasena;
+import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.CambioPassUser;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.ValidacionDatos;
-import com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.DTO.DesbloqueoUser;
 import envioCorreo.sendEmail;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -16,28 +16,25 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sms.SendSMS;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-
 import java.util.*;
+
 @Transactional
 @Service
 @RequiredArgsConstructor
-public class DesbloqueoService {
+public class CambioPassService {
     @PersistenceContext
     private EntityManager entityManager;
-
-
     private int intentosRealizadoTokenFallos = 0;
-    public ResponseEntity<Map<String, Object>> desbloquearUsuario (DesbloqueoUser credencialesDesbloqueo){
+    public ResponseEntity<Map<String, Object>> cambioPassUsuario (CambioPassUser credencialPassUser){
         Map<String, Object> allData = new HashMap<>();
         Map<String, Object> response = new HashMap<>();
         List<Map<String, Object>> allDataList = new ArrayList<>();
         HttpStatus status = HttpStatus.OK;
 
-        String mensajeValBlancos = validarCamposBlanco(credencialesDesbloqueo);
+        String mensajeValBlancos = validarCamposBlanco(credencialPassUser);
 
         if(mensajeValBlancos != null){
             allData.put("message", mensajeValBlancos);
@@ -49,9 +46,9 @@ public class DesbloqueoService {
             return new ResponseEntity<>(response,HttpStatus.BAD_REQUEST);
         }
 
-        Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialesDesbloqueo.getCliacUsuVirtu(), credencialesDesbloqueo.getClienIdeClien(), credencialesDesbloqueo.getClienCodClien(), credencialesDesbloqueo.getFechaNacimiento(), credencialesDesbloqueo.getTipoIdentificacion());
+        Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialPassUser.getCliacUsuVirtu(), credencialPassUser.getClienIdeClien(), credencialPassUser.getClienCodClien(), credencialPassUser.getFechaNacimiento(), credencialPassUser.getTipoIdentificacion());
         if (Boolean.TRUE.equals(verificarExistenciaUsario.get("success"))) {
-            allData.put("message", "´Pasa a ingresar codigo temporal 4 digitos.");
+            allData.put("message", "Pasa a ingresar codigo temporal 4 digitos.");
             allData.put("status", "DU00");
             String token = (String) verificarExistenciaUsario.get("token");
             allData.put("token", token);
@@ -66,6 +63,106 @@ public class DesbloqueoService {
         return new ResponseEntity<>(response, status);
     }
 
+
+    public Map<String,Object> verficaUsuario(String usuario, String identificacionUser, String codigoUsuario,
+                                             String fechaNacUsuario, String tipoIdentificacion) {
+
+        Map<String, Object> response = new HashMap<>();
+
+
+        List<Object[]> verificarExistenciaUsario = new ArrayList<>();
+        try {
+            String sqlVerificarUserDesbloq =
+                    "SELECT cliac_ide_clien, cliac_usu_virtu, clien_cod_tiden, clien_cod_clien, clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_www_pswrd, clien_fec_nacim " +
+                            "FROM cnxcliac, cnxclien " +
+                            "WHERE cliac_usu_virtu = :cliac_usu_virtu " +
+                            "AND cliac_ide_clien = :cliac_ide_clien " +
+                            "AND clien_cod_clien = :clien_cod_clien " +
+                            "AND clien_cod_tiden = :clien_cod_tiden " +
+                            "AND cliac_ide_clien = clien_ide_clien";
+
+            Query queryVerfUsuario = entityManager.createNativeQuery(sqlVerificarUserDesbloq);
+            queryVerfUsuario.setParameter("cliac_usu_virtu", usuario);
+            queryVerfUsuario.setParameter("clien_cod_clien", codigoUsuario);
+            queryVerfUsuario.setParameter("cliac_ide_clien", identificacionUser);
+            queryVerfUsuario.setParameter("clien_cod_tiden", tipoIdentificacion);
+
+
+            verificarExistenciaUsario = queryVerfUsuario.getResultList();
+
+            if (!verificarExistenciaUsario.isEmpty()) {
+                for (Object[] row0 : verificarExistenciaUsario) {
+                    String cliacIdeClien = row0[0].toString().trim();
+                    String cliacUsuVirtual = row0[1].toString().trim();
+                    String clieCodTien = row0[2].toString().trim();
+                    String clienCodigoClien = row0[3].toString().trim();
+                    String clienApellidoClien = row0[4].toString().trim();
+                    String clieNomClien = row0[5].toString().trim();
+                    String clieDirEmailCli = row0[6].toString().trim();
+                    String clieNumCelular = row0[7].toString().trim();
+                    String clienPassword = row0[8].toString().trim();
+                    String fechaNaciClien = row0[9].toString().trim();
+                    DateTimeFormatter formatoEntrada = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                    DateTimeFormatter formatoSalida = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                    String fechaNaciFormateada = LocalDate.parse(fechaNaciClien, formatoEntrada).format(formatoSalida);
+                    System.out.println("Fecha de nacimiento formateada: " + fechaNaciFormateada);
+
+                    if(cliacUsuVirtual.equals(usuario) && cliacIdeClien.equals(identificacionUser) && clieCodTien.equals(tipoIdentificacion)
+                            && clienCodigoClien.equals(codigoUsuario) && fechaNaciFormateada.equals(fechaNacUsuario)){
+                        System.out.println("Los usuarios si coinciden");
+                        String CodigoDesbloqueo = codigoAleatorioTemp();
+                        String FechaGenCodigo = obtenerFechaActual();
+                        String HoraGenCodigo = obtenerHoraActualHora();
+                        String FechaDesbloqueoUser = obtenerHoraActual();
+                        String mensajeDesbloqueo = "Estimados socio(a), el codigo de seguridad para desbloquear el usuario es: " + CodigoDesbloqueo + " Tiempo duracion 4 minutos. COAC ANDINA: " + FechaGenCodigo + " a las " + HoraGenCodigo;
+                        SendSMS smsDesbloqueo = new SendSMS();
+                        smsDesbloqueo.sendSMS(clieNumCelular, "1150", mensajeDesbloqueo);
+                        sendEmail enviarCorreo = new sendEmail();
+                        enviarCorreo.sendEmailTokenTemp(clienApellidoClien, clieNomClien, FechaDesbloqueoUser, clieDirEmailCli, CodigoDesbloqueo);
+                        String sqlUpdateEstado = "UPDATE vircodaccess SET codaccess_estado = '0' WHERE codaccess_cedula = :codaccess_cedula AND codaccess_estado = '1'";
+                        Query resultUpdateEstado = entityManager.createNativeQuery(sqlUpdateEstado);
+                        resultUpdateEstado.setParameter("codaccess_cedula", cliacIdeClien);
+                        resultUpdateEstado.executeUpdate();
+
+                        String sqlInsertToken = "INSERT INTO vircodaccess (codaccess_cedula, codaccess_usuario, codaccess_codigo_temporal, codsms_codigo, codaccess_estado, codaccess_fecha) VALUES (:codaccess_cedula, :codaccess_usuario, :codaccess_codigo_temporal, :codsms_codigo, :codaccess_estado, :codaccess_fecha)";
+
+                        Query resultInsertTokenAcceso = entityManager.createNativeQuery(sqlInsertToken);
+
+                        resultInsertTokenAcceso.setParameter("codaccess_cedula", cliacIdeClien);
+                        resultInsertTokenAcceso.setParameter("codaccess_usuario", cliacUsuVirtual);
+                        resultInsertTokenAcceso.setParameter("codaccess_codigo_temporal", CodigoDesbloqueo);
+                        resultInsertTokenAcceso.setParameter("codsms_codigo", 5);
+                        resultInsertTokenAcceso.setParameter("codaccess_estado", "1");
+                        resultInsertTokenAcceso.setParameter("codaccess_fecha", FechaDesbloqueoUser);
+
+                        resultInsertTokenAcceso.executeUpdate();
+
+                        String token = JwtUtil.generateToken(cliacUsuVirtual, cliacIdeClien, clienCodigoClien);
+                        response.put("success", true);
+                        response.put("message", "Acceso concedido.");
+                        response.put("status", "CC00");
+                        response.put("token", token);
+                        return response;
+                    }
+                }
+                response.put("success", false);
+                response.put("message", "Error: los datos ingresados no coinciden con la base de datos.");
+                response.put("status", "CC02");
+                response.put("errors", "Las credenciales ingresadas no coinciden con la información registrada.");
+            } else {
+                response.put("success", false);
+                response.put("message", "Usuario no registrado con los datos ingresados, por favor verifique e intente de nuevo.");
+                response.put("status", "CC01");
+                response.put("errors", "No se encontró información del usuario.");
+            }
+
+        } catch (Exception e) {
+            response.put("message", "Ocurrió un error inesperado al verificar el usuario.");
+            response.put("error", e.getMessage());
+            response.put("status", "ERROR");
+        }
+        return response;
+    }
     public ResponseEntity<Map<String, Object>> validarCodSeguridad(HttpServletRequest request, CodSegurdiad codSeguridad) {
         try {
             String cliacUsuVirtu = (String) request.getAttribute("CliacUsuVirtu");
@@ -96,7 +193,7 @@ public class DesbloqueoService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             String sqlVerificaTokenBDD = "SELECT codaccess_codigo_temporal FROM vircodaccess " +
-                    "WHERE codaccess_cedula = :codaccess_cedula AND codaccess_usuario = :codaccess_usuario AND codaccess_estado = :codaccess_estado AND codsms_codigo = 4  ";
+                    "WHERE codaccess_cedula = :codaccess_cedula AND codaccess_usuario = :codaccess_usuario AND codaccess_estado = :codaccess_estado AND codsms_codigo = 5  ";
             Query queryVerificaTokenBDD = entityManager.createNativeQuery(sqlVerificaTokenBDD);
             queryVerificaTokenBDD.setParameter("codaccess_cedula", clienIdenti);
             queryVerificaTokenBDD.setParameter("codaccess_usuario", cliacUsuVirtu);
@@ -120,14 +217,6 @@ public class DesbloqueoService {
                         String clienCedula = row2[4].toString().trim();
                         String clienCodClie = row2[5].toString().trim();
                         System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
-                        String sqlDesblocUser = "UPDATE cnxcliac SET cliac_ctr_bloq=:bloqueo, cliac_ctr_condi=:cliac_ctr_condi  WHERE cliac_ide_clien=:cliac_ide_clien  AND cliac_usu_virtu =:cliac_usu_virtu";
-                        Query resultBloqUser = entityManager.createNativeQuery(sqlDesblocUser);
-                        resultBloqUser.setParameter("bloqueo", "1");
-                        resultBloqUser.setParameter("cliac_ctr_condi", "1");
-                        resultBloqUser.setParameter("cliac_ide_clien",clienCedula);
-                        resultBloqUser.setParameter("cliac_usu_virtu", cliacUsuVirtu);
-                        resultBloqUser.executeUpdate();
-
                         String fechaHora  = obtenerHoraActual();
                         String claveLogin = codigoAleatorioTemp();
                         PassSecure encriptarClave = new PassSecure();
@@ -137,7 +226,7 @@ public class DesbloqueoService {
                         // NUEVAS CONSULTAS PARA ACTUALIZAR CÓDIGOS
                         // Actualizar estado de códigos anteriores a 0
                         String sqlUpdateEstadoAnteriores = "UPDATE vircodaccess SET codaccess_estado = '0' " +
-                                "WHERE codaccess_cedula = :codaccess_cedula AND codaccess_usuario = :codaccess_usuario AND codaccess_estado = '1' AND codsms_codigo = 4";
+                                "WHERE codaccess_cedula = :codaccess_cedula AND codaccess_usuario = :codaccess_usuario AND codaccess_estado = '1' AND codsms_codigo = 5";
                         Query queryUpdateEstadoAnteriores = entityManager.createNativeQuery(sqlUpdateEstadoAnteriores);
                         queryUpdateEstadoAnteriores.setParameter("codaccess_cedula", clienCedula);
                         queryUpdateEstadoAnteriores.setParameter("codaccess_usuario", cliacUsuVirtu);
@@ -146,7 +235,7 @@ public class DesbloqueoService {
                         // Insertar nuevo código temporal
                         String sqlInsertNuevoCodigo = "INSERT INTO vircodaccess " +
                                 "(codaccess_cedula, codaccess_usuario, codaccess_codigo_temporal, codaccess_estado, codsms_codigo, codaccess_fecha) " +
-                                "VALUES (:codaccess_cedula, :codaccess_usuario, :codaccess_codigo_temporal, '1', 4, :codaccess_fecha)";
+                                "VALUES (:codaccess_cedula, :codaccess_usuario, :codaccess_codigo_temporal, '1', 5, :codaccess_fecha)";
                         Query queryInsertNuevoCodigo = entityManager.createNativeQuery(sqlInsertNuevoCodigo);
                         queryInsertNuevoCodigo.setParameter("codaccess_cedula", clienCedula);
                         queryInsertNuevoCodigo.setParameter("codaccess_usuario", cliacUsuVirtu);
@@ -224,6 +313,18 @@ public class DesbloqueoService {
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+    public String validarCodigoSeguridad(CodSegurdiad request) {
+
+        if (request.getCodaccess_codigo_temporal() == null || request.getCodaccess_codigo_temporal().trim().isEmpty()) {
+            return "El código temporal no puede estar vacío o contener solo espacios.";
+        }
+
+        if (request.getCodaccess_codigo_temporal().length() < 4) {
+            return "El código temporal debe tener al menos 4 caracteres.";
+        }
+
+        return null;
+    }
     public ResponseEntity<Map<String, Object>> validarDatosUsuario(HttpServletRequest request, ValidacionDatos validacionDatos) {
         try {
             String cliacUsuVirtu = (String) request.getAttribute("CliacUsuVirtu");
@@ -263,7 +364,6 @@ public class DesbloqueoService {
                     allDataList.add(allData);
                     response.put("AllData", allDataList);
                     return new ResponseEntity<>(response, HttpStatus.OK);
-
                 }
             }else{
                 allData.put("message", "Error en encontrar su informacion con el numero de cedula ingresado. ");
@@ -272,8 +372,8 @@ public class DesbloqueoService {
                 allDataList.add(allData);
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
-            }
 
+            }
             return new ResponseEntity<>(response, status);
 
         }catch (Exception e){
@@ -292,7 +392,7 @@ public class DesbloqueoService {
         }
 
     }
-    public ResponseEntity<Map<String, Object>> cambioContrasena(HttpServletRequest request, CambioContrasena cambioContrasena) {
+    public ResponseEntity<Map<String, Object>> cambioContrasenaOk(HttpServletRequest request, CambioContrasena cambioContrasena) {
         String cliacUsuVirtu = (String) request.getAttribute("CliacUsuVirtu");
         String clienIdenti = (String) request.getAttribute("ClienIdenti");
         String numSocio = (String) request.getAttribute("numSocio");
@@ -408,7 +508,7 @@ public class DesbloqueoService {
         try {
             String claveTempActual = cambioContrasena.getPassActual();
             String sqlValDatos = "SELECT codaccess_cedula, codaccess_usuario, codaccess_codigo_temporal FROM vircodaccess " +
-                    "WHERE codaccess_codigo_temporal = :codaccess_codigo_temporal AND codaccess_estado = '1' AND codsms_codigo = '4'";
+                    "WHERE codaccess_codigo_temporal = :codaccess_codigo_temporal AND codaccess_estado = '1' AND codsms_codigo = '5'";
             Query resulValDatosCamPass = entityManager.createNativeQuery(sqlValDatos);
             resulValDatosCamPass.setParameter("codaccess_codigo_temporal", claveTempActual);
             List<Object[]> result = resulValDatosCamPass.getResultList();
@@ -427,7 +527,7 @@ public class DesbloqueoService {
                             String fechaActual = obtenerHoraActual();
 
                             // Actualizar contraseñas anteriores a estado 0
-                            String sqlUpdateEstadoPass = "UPDATE virwwwpswdcambio SET virwwwpswdcambio_estado = '0' WHERE virwwwpswdcambio_cedula = :virwwwpswdcambio_cedula AND virwwwpswdcambio_estado = '1' AND codsms_codigo = 4";
+                            String sqlUpdateEstadoPass = "UPDATE virwwwpswdcambio SET virwwwpswdcambio_estado = '0' WHERE virwwwpswdcambio_cedula = :virwwwpswdcambio_cedula AND virwwwpswdcambio_estado = '1' AND codsms_codigo = 5";
                             Query resultUpdateEstadoPass = entityManager.createNativeQuery(sqlUpdateEstadoPass);
                             resultUpdateEstadoPass.setParameter("virwwwpswdcambio_cedula", clienIdenti);
                             resultUpdateEstadoPass.executeUpdate();
@@ -442,7 +542,7 @@ public class DesbloqueoService {
                             resulCambioPassTemp.setParameter("virwwwpswdcambio_estado", "1");
                             resulCambioPassTemp.setParameter("virwwwpswdcambio_newpass", NewPassEncrip);
                             resulCambioPassTemp.setParameter("virwwwpswdcambio_confpass", NewPassEncrip);
-                            resulCambioPassTemp.setParameter("codsms_codigo", 4);
+                            resulCambioPassTemp.setParameter("codsms_codigo", 5);
                             resulCambioPassTemp.setParameter("codaccess_fecha", fechaActual);
                             int resultado = resulCambioPassTemp.executeUpdate();
 
@@ -475,7 +575,7 @@ public class DesbloqueoService {
                                     enviarCorreo.sendEmailTokenTemp(clienApellidos, clienNombres, FechaDesbloqueoUser, clienEmail, CodigoDesbloqueo);
 
                                     // Actualizar estados anteriores a 0
-                                    String sqlUpdateEstado = "UPDATE vircodaccess SET codaccess_estado = '0' WHERE codaccess_cedula = :codaccess_cedula AND codaccess_estado = '1' AND codsms_codigo = 4";
+                                    String sqlUpdateEstado = "UPDATE vircodaccess SET codaccess_estado = '0' WHERE codaccess_cedula = :codaccess_cedula AND codaccess_estado = '1' AND codsms_codigo = 5";
                                     Query resultUpdateEstado = entityManager.createNativeQuery(sqlUpdateEstado);
                                     resultUpdateEstado.setParameter("codaccess_cedula", clienIdenti);
                                     resultUpdateEstado.executeUpdate();
@@ -487,7 +587,7 @@ public class DesbloqueoService {
                                     resultInsertTokenAcceso.setParameter("codaccess_cedula", clienIdenti);
                                     resultInsertTokenAcceso.setParameter("codaccess_usuario", clienUsuario);
                                     resultInsertTokenAcceso.setParameter("codaccess_codigo_temporal", CodigoDesbloqueo);
-                                    resultInsertTokenAcceso.setParameter("codsms_codigo", 4);
+                                    resultInsertTokenAcceso.setParameter("codsms_codigo", 5);
                                     resultInsertTokenAcceso.setParameter("codaccess_estado", "1");
                                     resultInsertTokenAcceso.setParameter("codaccess_fecha", FechaDesbloqueoUser);
                                     resultInsertTokenAcceso.executeUpdate();
@@ -541,7 +641,7 @@ public class DesbloqueoService {
         }
     }
 
-    public ResponseEntity<Map<String, Object>> validarCodSeguridadFinal(HttpServletRequest request, CodSegurdiad codSeguridad) {
+    public ResponseEntity<Map<String, Object>> validarCodigoSeguFinal(HttpServletRequest request, CodSegurdiad codSeguridad) {
         try {
             String cliacUsuVirtu = (String) request.getAttribute("CliacUsuVirtu");
             String clienIdenti = (String) request.getAttribute("ClienIdenti");
@@ -574,7 +674,7 @@ public class DesbloqueoService {
             queryVerificaTokenBDD.setParameter("codaccess_cedula", clienIdenti);
             queryVerificaTokenBDD.setParameter("codaccess_usuario", cliacUsuVirtu);
             queryVerificaTokenBDD.setParameter("codaccess_estado", "1");
-            queryVerificaTokenBDD.setParameter("codsms_codigo", 4);
+            queryVerificaTokenBDD.setParameter("codsms_codigo", 5);
             List<Object[]> resultsTokenBDD = queryVerificaTokenBDD.getResultList();
             if (!resultsTokenBDD.isEmpty()) {
                 String tokenFromDB = (String) queryVerificaTokenBDD.getSingleResult();
@@ -591,7 +691,7 @@ public class DesbloqueoService {
                     queryVerificaPassBDD.setParameter("virwwwpswdcambio_cedula", clienIdenti);
                     queryVerificaPassBDD.setParameter("virwwwpswdcambio_usuario", cliacUsuVirtu);
                     queryVerificaPassBDD.setParameter("virwwwpswdcambio_estado", "1");
-                    queryVerificaPassBDD.setParameter("codsms_codigo", 4);
+                    queryVerificaPassBDD.setParameter("codsms_codigo", 5);
 
                     List<String> passBDD = queryVerificaPassBDD.getResultList();
 
@@ -602,22 +702,22 @@ public class DesbloqueoService {
                         String sqlUpdatePassword = "UPDATE cnxclien SET clien_www_pswrd = :newPassword " +
                                 "WHERE clien_ide_clien = :clientId";
                         // Crear la consulta de actualización
-                                Query queryUpdatePassword = entityManager.createNativeQuery(sqlUpdatePassword);
+                        Query queryUpdatePassword = entityManager.createNativeQuery(sqlUpdatePassword);
                         // Configurar los parámetros
-                                queryUpdatePassword.setParameter("newPassword", newPass);
-                                queryUpdatePassword.setParameter("clientId", clienIdenti);
+                        queryUpdatePassword.setParameter("newPassword", newPass);
+                        queryUpdatePassword.setParameter("clientId", clienIdenti);
                         // Ejecutar la actualización
-                                int rowsUpdated = queryUpdatePassword.executeUpdate();
+                        int rowsUpdated = queryUpdatePassword.executeUpdate();
 
-                                if (rowsUpdated > 0) {
-                                    allData.put("message", "CONTRASEÑA ACTUALIZADA CORRECTAMENTE");
-                                    allData.put("status", "CCOK");
-                                    allDataList.add(allData);
-                                    response.put("AllData", allDataList);
-                                    return new ResponseEntity<>(response, HttpStatus.OK);
-                                } else {
-                                    System.out.println("No se pudo actualizar la contraseña. Verifica los datos.");
-                                }
+                        if (rowsUpdated > 0) {
+                            allData.put("message", "CONTRASEÑA ACTUALIZADA CORRECTAMENTE");
+                            allData.put("status", "CCOK");
+                            allDataList.add(allData);
+                            response.put("AllData", allDataList);
+                            return new ResponseEntity<>(response, HttpStatus.OK);
+                        } else {
+                            System.out.println("No se pudo actualizar la contraseña. Verifica los datos.");
+                        }
                     } else {
                         System.out.println("No se encontraron resultados para virwwwpswdcambio_newpass.");
                     }
@@ -675,136 +775,21 @@ public class DesbloqueoService {
     }
 
 
-
-
-
-
-    public String validarCamposBlanco(DesbloqueoUser credencialesDesbloqueo){
-        if(credencialesDesbloqueo.getCliacUsuVirtu() == null || credencialesDesbloqueo.getCliacUsuVirtu().isEmpty()){
+    public String validarCamposBlanco(CambioPassUser credencialPassUser){
+        if(credencialPassUser.getCliacUsuVirtu() == null || credencialPassUser.getCliacUsuVirtu().isEmpty()){
             return "El usuario no puede estar en blanco";
 
         }
-        if(credencialesDesbloqueo.getClienIdeClien() == null || credencialesDesbloqueo.getClienIdeClien().isEmpty()){
+        if(credencialPassUser.getClienIdeClien() == null || credencialPassUser.getClienIdeClien().isEmpty()){
             return "El numero de indentificacion no puede estar en blanco";
 
         }
-        if(credencialesDesbloqueo.getClienCodClien() == null || credencialesDesbloqueo.getClienCodClien().isEmpty()){
+        if(credencialPassUser.getClienCodClien() == null || credencialPassUser.getClienCodClien().isEmpty()){
             return  "El numero de socio no puede estar en blanco";
         }
-        if(credencialesDesbloqueo.getFechaNacimiento() == null || credencialesDesbloqueo.getFechaNacimiento().isEmpty()
+        if(credencialPassUser.getFechaNacimiento() == null || credencialPassUser.getFechaNacimiento().isEmpty()
         ){
             return "La fecha de nacimiento no puede estar en blanco";
-        }
-
-        return null;
-    }
-
-
-    public Map<String,Object> verficaUsuario(String usuario, String identificacionUser, String codigoUsuario,
-                                         String fechaNacUsuario, String tipoIdentificacion) {
-
-        Map<String, Object> response = new HashMap<>();
-        List<Object[]> verificarExistenciaUsario = new ArrayList<>();
-        try {
-            String sqlVerificarUserDesbloq =
-                    "SELECT cliac_ide_clien, cliac_usu_virtu, clien_cod_tiden, clien_cod_clien, clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_www_pswrd, clien_fec_nacim " +
-                            "FROM cnxcliac, cnxclien " +
-                            "WHERE cliac_usu_virtu = :cliac_usu_virtu " +
-                            "AND cliac_ide_clien = :cliac_ide_clien " +
-                            "AND clien_cod_clien = :clien_cod_clien " +
-                            "AND clien_cod_tiden = :clien_cod_tiden " +
-                            "AND cliac_ide_clien = clien_ide_clien";
-
-            Query queryVerfUsuario = entityManager.createNativeQuery(sqlVerificarUserDesbloq);
-            queryVerfUsuario.setParameter("cliac_usu_virtu", usuario);
-            queryVerfUsuario.setParameter("clien_cod_clien", codigoUsuario);
-            queryVerfUsuario.setParameter("cliac_ide_clien", identificacionUser);
-            queryVerfUsuario.setParameter("clien_cod_tiden", tipoIdentificacion);
-
-
-            verificarExistenciaUsario = queryVerfUsuario.getResultList();
-
-            if (!verificarExistenciaUsario.isEmpty()) {
-                for (Object[] row0 : verificarExistenciaUsario) {
-                    String cliacIdeClien = row0[0].toString().trim();
-                    String cliacUsuVirtual = row0[1].toString().trim();
-                    String clieCodTien = row0[2].toString().trim();
-                    String clienCodigoClien = row0[3].toString().trim();
-                    String clienApellidoClien = row0[4].toString().trim();
-                    String clieNomClien = row0[5].toString().trim();
-                    String clieDirEmailCli = row0[6].toString().trim();
-                    String clieNumCelular = row0[7].toString().trim();
-                    String clienPassword = row0[8].toString().trim();
-                    String fechaNaciClien = row0[9].toString().trim();
-                    DateTimeFormatter formatoEntrada = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                    DateTimeFormatter formatoSalida = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                    String fechaNaciFormateada = LocalDate.parse(fechaNaciClien, formatoEntrada).format(formatoSalida);
-                    System.out.println("Fecha de nacimiento formateada: " + fechaNaciFormateada);
-
-                    if(cliacUsuVirtual.equals(usuario) && cliacIdeClien.equals(identificacionUser) && clieCodTien.equals(tipoIdentificacion)
-                            && clienCodigoClien.equals(codigoUsuario) && fechaNaciFormateada.equals(fechaNacUsuario)){
-                        System.out.println("Los usuarios si coinciden");
-                        String CodigoDesbloqueo = codigoAleatorioTemp();
-                        String FechaGenCodigo = obtenerFechaActual();
-                        String HoraGenCodigo = obtenerHoraActualHora();
-                        String FechaDesbloqueoUser = obtenerHoraActual();
-                        String mensajeDesbloqueo = "Estimados socio(a), el codigo de seguridad para desbloquear el usuario es: " + CodigoDesbloqueo + " Tiempo duracion 4 minutos. COAC ANDINA: " + FechaGenCodigo + " a las " + HoraGenCodigo;
-                        SendSMS smsDesbloqueo = new SendSMS();
-                        smsDesbloqueo.sendSMS(clieNumCelular, "1150", mensajeDesbloqueo);
-                        sendEmail enviarCorreo = new sendEmail();
-                        enviarCorreo.sendEmailTokenTemp(clienApellidoClien, clieNomClien, FechaDesbloqueoUser, clieDirEmailCli, CodigoDesbloqueo);
-                        String sqlUpdateEstado = "UPDATE vircodaccess SET codaccess_estado = '0' WHERE codaccess_cedula = :codaccess_cedula AND codaccess_estado = '1' AND codsms_codigo = 4 ";
-                        Query resultUpdateEstado = entityManager.createNativeQuery(sqlUpdateEstado);
-                        resultUpdateEstado.setParameter("codaccess_cedula", cliacIdeClien);
-                        resultUpdateEstado.executeUpdate();
-
-                        String sqlInsertToken = "INSERT INTO vircodaccess (codaccess_cedula, codaccess_usuario, codaccess_codigo_temporal, codsms_codigo, codaccess_estado, codaccess_fecha) VALUES (:codaccess_cedula, :codaccess_usuario, :codaccess_codigo_temporal, :codsms_codigo, :codaccess_estado, :codaccess_fecha)";
-
-                        Query resultInsertTokenAcceso = entityManager.createNativeQuery(sqlInsertToken);
-
-                        resultInsertTokenAcceso.setParameter("codaccess_cedula", cliacIdeClien);
-                        resultInsertTokenAcceso.setParameter("codaccess_usuario", cliacUsuVirtual);
-                        resultInsertTokenAcceso.setParameter("codaccess_codigo_temporal", CodigoDesbloqueo);
-                        resultInsertTokenAcceso.setParameter("codsms_codigo", 4);
-                        resultInsertTokenAcceso.setParameter("codaccess_estado", "1");
-                        resultInsertTokenAcceso.setParameter("codaccess_fecha", FechaDesbloqueoUser);
-
-                        resultInsertTokenAcceso.executeUpdate();
-
-                        String token = JwtUtil.generateToken(cliacUsuVirtual, cliacIdeClien, clienCodigoClien);
-                        response.put("success", true);
-                        response.put("message", "Acceso concedido.");
-                        response.put("status", "AA00");
-                        response.put("token", token);
-                        return response;
-                    }
-                }
-                response.put("success", false);
-                response.put("message", "Error: los datos ingresados no coinciden con la base de datos.");
-                response.put("status", "DU03");
-                response.put("errors", "Las credenciales ingresadas no coinciden con la información registrada.");
-            } else {
-                response.put("success", false);
-                response.put("message", "Usuario no registrado con los datos ingresados, por favor verifique e intente de nuevo.");
-                response.put("status", "DU02");
-                response.put("errors", "No se encontró información del usuario.");
-            }
-
-        } catch (Exception e) {
-            response.put("message", "Ocurrió un error inesperado al verificar el usuario.");
-            response.put("error", e.getMessage());
-            response.put("status", "ERROR");
-        }
-        return response;
-    }
-    public String validarCodigoSeguridad(CodSegurdiad request) {
-
-        if (request.getCodaccess_codigo_temporal() == null || request.getCodaccess_codigo_temporal().trim().isEmpty()) {
-            return "El código temporal no puede estar vacío o contener solo espacios." + request.getCodaccess_codigo_temporal();
-        }
-
-        if (request.getCodaccess_codigo_temporal().length() < 4) {
-            return "El código temporal debe tener al menos 4 caracteres.";
         }
 
         return null;
@@ -815,7 +800,6 @@ public class DesbloqueoService {
         int numeroAleatorio = 100000 + random.nextInt(900000); // Asegura 6 dígitos
         return String.valueOf(numeroAleatorio);
     }
-
     public String codigoAleatorioTemp() {
         // Genera un número aleatorio de 4 dígitos
         Random random = new Random();
