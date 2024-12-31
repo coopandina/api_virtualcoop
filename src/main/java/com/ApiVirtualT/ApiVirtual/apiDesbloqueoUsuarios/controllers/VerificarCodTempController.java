@@ -31,18 +31,22 @@ public class VerificarCodTempController {
     public ResponseEntity<Map<String, Object>> verificarDatos (HttpServletRequest request, @RequestBody ValidacionDatos validacionDatos){
         return desbloqueoService.validarDatosUsuario(request, validacionDatos);
     }
+
     @PostMapping("/cambio_contrasena")
     public ResponseEntity<Map<String, Object>> cambioContrasena (HttpServletRequest request,
                                                                  @RequestBody CambioContrasena cambioContrasena){
         return desbloqueoService.cambioContrasena(request, cambioContrasena);
     }
-
     @PostMapping("/codigo_fin_cambiopass")
     public ResponseEntity<Map<String, Object>> valCodiSeguridadDesbloqueo(
             HttpServletRequest request,
             @RequestBody CodSegurdiad codSeguridad
     ) {
         return desbloqueoService.validarCodSeguridadFinal(request, codSeguridad);
+    }
+    @PostMapping("validar_rpt_seguridad")
+    public  ResponseEntity<Map<String, Object>> VerificarRespuesta (HttpServletRequest request, @RequestBody ValidacionDatos validacionDatos ){
+        return desbloqueoService.validarRspSeg(request, validacionDatos);
     }
 
 }

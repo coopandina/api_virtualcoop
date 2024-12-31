@@ -12,6 +12,15 @@ import lombok.NoArgsConstructor;
 
 public class ValidacionDatos {
     public String ClienIdeClien;
+    public String RespSeguridad;
+
+    public String getRespSeguridad() {
+        return RespSeguridad;
+    }
+
+    public void setRespSeguridad(String respSeguridad) {
+        RespSeguridad = respSeguridad;
+    }
 
     public String getClienIdeClien() {
         return ClienIdeClien;

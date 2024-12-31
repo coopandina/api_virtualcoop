@@ -27,9 +27,6 @@ public class DesbloqueoController {
     @PostMapping(value = "desbloqueo_usuario")
     public ResponseEntity<Map<String, Object>> desbloqueoUsuarios(@RequestBody DesbloqueoUser credencialesDesbloqueo){
         return desbloqueoService.desbloquearUsuario(credencialesDesbloqueo);
-
-
     }
-
 
 }

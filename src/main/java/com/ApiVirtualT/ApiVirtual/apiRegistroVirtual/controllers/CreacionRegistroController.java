@@ -1,7 +1,9 @@
-package com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers;
+package com.ApiVirtualT.ApiVirtual.apiRegistroVirtual.controllers;
+
 
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.CodSegurdiad;
-import com.ApiVirtualT.ApiVirtual.apiAutenticacion.services.AuthService;
+import com.ApiVirtualT.ApiVirtual.apiRegistroVirtual.DTO.CrearUsuario;
+import com.ApiVirtualT.ApiVirtual.apiRegistroVirtual.services.RegistroService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,17 +16,14 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/verificar")
+@RequestMapping("verificar")
 @RequiredArgsConstructor
-public class VerifiController {
-
+public class CreacionRegistroController {
     @Autowired
-    private AuthService authService;
-    /**
-     * Endpoint para verificar Token seguridad Login
-     */
-    @PostMapping(value = "/codigo_seguridad")
-    public ResponseEntity<Map<String, Object>> valCodiSeguridad(HttpServletRequest request, @RequestBody CodSegurdiad codSeguridad) {
-        return authService.validarCodSeguridad(request, codSeguridad);
+    private RegistroService registroService;
+
+    @PostMapping("crear_usuario")
+    public ResponseEntity<Map<String, Object>> validarCodSegDesbloqueo(HttpServletRequest request, @RequestBody CrearUsuario crearUsuario){
+        return registroService.ObtenerUsuarios(request, crearUsuario);
     }
 }

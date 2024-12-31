@@ -17,6 +17,7 @@ public class DesbloqueoUser {
     public String FechaNacimiento;
     public String TipoIdentificacion;
 
+
     public String getTipoIdentificacion() {
         return TipoIdentificacion;
     }

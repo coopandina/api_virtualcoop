@@ -1,15 +1,15 @@
 package com.ApiVirtualT.ApiVirtual.apiAutenticacion.JWT;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.context.annotation.Configuration;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -18,6 +18,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.security.Key;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -30,50 +32,70 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
-            return; // Si no hay token, continuar sin autenticar
+            return;
         }
 
-        String token = authHeader.substring(7); // Eliminar "Bearer "
+        String token = authHeader.substring(7);
 
         try {
-            // Validar el token
             Claims claims = Jwts.parserBuilder()
                     .setSigningKey(key)
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
 
-            // Extraer el subject del token
-            String subject = claims.getSubject(); // "Aclascano21,1750442145,25310"
+            String subject = claims.getSubject();
             if (subject != null) {
-                // Dividir el subject en sus partes
                 String[] parts = subject.split(",");
-                if (parts.length == 3) {
-                    String CliacUsuVirtu = parts[0];  // Usuario (Aclascano21)
-                    String ClienIdenti = parts[1];   // Número de cédula (1750442145)
-                    String numSocio = parts[2];      // Número de socio (25310)
 
-                    // Configurar el contexto de seguridad con el usuario
+                // Validar según el número de partes del token
+                if (parts.length == 3) {
+                    // Token de usuario completo
+                    String CliacUsuVirtu = parts[0];
+                    String ClienIdenti = parts[1];
+                    String numSocio = parts[2];
+
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(CliacUsuVirtu, null, new ArrayList<>());
                     SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                    // Opcional: Guardar los valores en el request para usarlos en los controladores
                     request.setAttribute("CliacUsuVirtu", CliacUsuVirtu);
                     request.setAttribute("ClienIdenti", ClienIdenti);
                     request.setAttribute("numSocio", numSocio);
-                } else {
-                    throw new JwtException("El formato del token no es válido");
+                }
+                else if (parts.length == 2) {
+                    // Token de registro
+                    String ClienIdenti = parts[0];
+                    String fecNacClien = parts[1];
+
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(ClienIdenti, null, new ArrayList<>());
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                    request.setAttribute("ClienIdenti", ClienIdenti);
+                    request.setAttribute("fecNacClien", fecNacClien);
+                    request.setAttribute("tokenType", "registro");
+                }
+                else {
+                    throw new JwtException("Formato de token no válido");
                 }
             }
 
         } catch (JwtException e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Token inválido o expirado");
-            return; // Detener la cadena de filtros si el token no es válido
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Token inválido o expirado");
+            errorResponse.put("message", e.getMessage());
+
+            String jsonResponse = new ObjectMapper().writeValueAsString(errorResponse);
+            response.getWriter().write(jsonResponse);
+            return;
         }
 
-        filterChain.doFilter(request, response); // Continuar con el filtro
+        filterChain.doFilter(request, response);
     }
 
 }

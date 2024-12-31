@@ -63,12 +63,22 @@
 		<dependency>
 			<groupId>ApiVirtualPersonas</groupId>
 			<artifactId>libSMS</artifactId>
-			<version>1.0.0</version>
+			<version>2.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>ApiVirtualPersonas</groupId>
 			<artifactId>libEmailSms</artifactId>
+			<version>4.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>ApiVirtualPersonas</groupId>
+			<artifactId>libClavesCore2</artifactId>
 			<version>2.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+			<version>20240303</version>
 		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>

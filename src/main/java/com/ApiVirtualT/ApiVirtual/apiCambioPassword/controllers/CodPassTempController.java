@@ -5,6 +5,7 @@ import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.CambioContrasena;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.ValidacionDatos;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.services.CambioPassService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.websocket.OnClose;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.CodSegurdiad;
@@ -36,11 +37,16 @@ public class CodPassTempController {
                                                                  @RequestBody CambioContrasena cambioContrasena){
         return cambioPassService.cambioContrasenaOk(request, cambioContrasena);
     }
+
     @PostMapping("/codigo_seis_cambiopass")
     public ResponseEntity<Map<String, Object>> valCodiSeguridadDesbloqueo(
             HttpServletRequest request,
             @RequestBody CodSegurdiad codSeguridad
     ) {
         return cambioPassService.validarCodigoSeguFinal(request, codSeguridad);
+    }
+    @PostMapping("val_rpt_seguridad")
+    public  ResponseEntity<Map<String, Object>> VerificarRespuesta (HttpServletRequest request, @RequestBody ValidacionDatos validacionDatos ){
+        return cambioPassService.validarRspSeg(request, validacionDatos);
     }
 }

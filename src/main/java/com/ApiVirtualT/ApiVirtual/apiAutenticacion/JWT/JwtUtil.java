@@ -25,6 +25,15 @@ public class JwtUtil {
                 .signWith(key)
                 .compact();
     }
+    public static String tokenRegistroVirtual(String ClienIdenti, String fecNacClien){
+        String subject = ClienIdenti + "," + fecNacClien;
+        return Jwts.builder()
+                .setSubject(subject)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(key)
+                .compact();
+    }
     public static boolean validateToken(String token) {
         try {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);

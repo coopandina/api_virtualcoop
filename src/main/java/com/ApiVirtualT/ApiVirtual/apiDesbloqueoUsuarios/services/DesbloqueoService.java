@@ -1,6 +1,7 @@
 package com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.services;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.JWT.JwtUtil;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.CodSegurdiad;
+import com.ApiVirtualT.ApiVirtual.apiAutenticacion.services.TokenExpirationService;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.CambioContrasena;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.ValidacionDatos;
 import com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.DTO.DesbloqueoUser;
@@ -11,12 +12,15 @@ import jakarta.persistence.Query;
 import jakarta.servlet.http.HttpServletRequest;
 import libs.PassSecure;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sms.SendSMS;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,7 +32,8 @@ import java.util.*;
 public class DesbloqueoService {
     @PersistenceContext
     private EntityManager entityManager;
-
+    @Autowired
+    private TokenExpirationService tokenExpirationService;
 
     private int intentosRealizadoTokenFallos = 0;
     public ResponseEntity<Map<String, Object>> desbloquearUsuario (DesbloqueoUser credencialesDesbloqueo){
@@ -48,6 +53,41 @@ public class DesbloqueoService {
 
             return new ResponseEntity<>(response,HttpStatus.BAD_REQUEST);
         }
+        if (credencialesDesbloqueo.getFechaNacimiento() == null || !credencialesDesbloqueo.getFechaNacimiento().matches("^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/([12][0-9]{3})$")) {
+            allData.put("message", "Formato de fecha inválido");
+            allData.put("status", "DU22");
+            allData.put("errors", "La fecha debe tener el formato DD/MM/YYYY");
+            allDataList.add(allData);
+            response.put("AllData", allDataList);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+        if (credencialesDesbloqueo.getClienCodClien() == null || !credencialesDesbloqueo.getClienCodClien().matches("^[0-9]+$")) {
+            allData.put("message", "Código de cliente inválido");
+            allData.put("status", "DU23");
+            allData.put("errors", "El código de cliente debe contener solo números");
+            allDataList.add(allData);
+            response.put("AllData", allDataList);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        if (credencialesDesbloqueo.getTipoIdentificacion() == null || !credencialesDesbloqueo.getTipoIdentificacion().matches("^[0-9]+$")) {
+            allData.put("message", "Tipo de identificación inválido");
+            allData.put("status", "DU24");
+            allData.put("errors", "El tipo de identificación debe contener solo números");
+            allDataList.add(allData);
+            response.put("AllData", allDataList);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        String repsuestaValidarCedula = validarCedulaEC(credencialesDesbloqueo);
+        if(repsuestaValidarCedula != null){
+            allData.put("message", repsuestaValidarCedula);
+            allData.put("status", "AA035");
+            allData.put("errors", "La cedula de ciudadania ingresada no es correcta o no existe");
+            allDataList.add(allData);
+            response.put("AllData", allDataList);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
 
         Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialesDesbloqueo.getCliacUsuVirtu(), credencialesDesbloqueo.getClienIdeClien(), credencialesDesbloqueo.getClienCodClien(), credencialesDesbloqueo.getFechaNacimiento(), credencialesDesbloqueo.getTipoIdentificacion());
         if (Boolean.TRUE.equals(verificarExistenciaUsario.get("success"))) {
@@ -59,6 +99,7 @@ public class DesbloqueoService {
             allData.put("message", verificarExistenciaUsario.get("message"));
             allData.put("status", verificarExistenciaUsario.get("status"));
             allData.put("errors", verificarExistenciaUsario.get("errors"));
+            status = HttpStatus.BAD_REQUEST;
 
         }
         allDataList.add(allData);
@@ -85,6 +126,7 @@ public class DesbloqueoService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
+
 
             String mensajeValidarCodigoSeguridad = validarCodigoSeguridad(codSeguridad);
             if (mensajeValidarCodigoSeguridad != null) {
@@ -155,7 +197,7 @@ public class DesbloqueoService {
                         queryInsertNuevoCodigo.executeUpdate();
 
                         sendEmail enviarCorreoClaveTemLogin = new sendEmail();
-                        enviarCorreoClaveTemLogin.sendEmailTokenTemp(clienApellidos, clienNombres, fechaHora,clienEmail, claveLogin);
+                        enviarCorreoClaveTemLogin.sendEmailClaveTemp(clienApellidos, clienNombres, fechaHora,clienEmail, claveLogin);
                         SendSMS enviarClave4Login = new SendSMS();
                         String FechaGenCodigo = obtenerFechaActual();
                         String HoraGenCodigo = obtenerHoraActualHora();
@@ -167,6 +209,9 @@ public class DesbloqueoService {
                         resultActuaContra.setParameter("clien_www_pswrd", claveEncriptadaLogin4);
                         resultActuaContra.setParameter("clien_ide_clien", clienCedula);
                         resultActuaContra.executeUpdate();
+                        tokenExpirationService.programarExpiracionToken(clienCedula, claveLogin, "4");
+
+
                     }
                     allData.put("message", "Pasa a validar informacion del usuario ok !!");
                     allData.put("status", "DU10");
@@ -185,10 +230,24 @@ public class DesbloqueoService {
                         try {
                             int rowsUpdated = resultBloqUser.executeUpdate();
                             if (rowsUpdated > 0) {
-                                intentosRealizadoTokenFallos = 0;
-                                response.put("success", false);
-                                response.put("message", "Usuario bloqueado por exceder límite de intentos");
-                                response.put("status", "DU06");
+                                String sqlDatosCorreoIngreso = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email FROM cnxclien, cnxcliac " +
+                                        "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
+                                Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
+                                resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
+                                String FechaHora =  obtenerHoraActual();
+                                List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
+                                for (Object[] row2 : results2) {
+                                    String clienApellidos = row2[0].toString().trim();
+                                    String clienNombres = row2[1].toString().trim();
+                                    String clienEmail = row2[2].toString().trim();
+                                    String IpIngreso = localIP();
+                                    sendEmail emailBloq = new sendEmail();
+                                    emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora, clienEmail, IpIngreso);
+                                    intentosRealizadoTokenFallos = 0;
+                                    response.put("success", false);
+                                    response.put("message", "Usuario bloqueado por exceder límite de intentos");
+                                    response.put("status", "DU06");
+                                }
                             }
                         } catch (Exception e) {
                             response.put("success", false);
@@ -203,7 +262,7 @@ public class DesbloqueoService {
                 }
             }else {
                 allData.put("status", "DU09");
-                allData.put("errors", "TOKEN INCORRECTO");
+                allData.put("errors", "CODIGO TEMPORAL INVALIDO, HA SOBREPASADO LOS 4 MINUTOS");
                 allDataList.add(allData);
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -243,6 +302,7 @@ public class DesbloqueoService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
+
             if(clienIdenti.equals(validacionDatos.getClienIdeClien())){
                 String sqlDatosUsuario = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_fec_nacim FROM cnxclien, cnxcliac " +
                         "WHERE clien_ide_clien = :clien_ide_clien AND clien_ide_clien = cliac_ide_clien";
@@ -255,11 +315,17 @@ public class DesbloqueoService {
                     String clienEmail = row1[2].toString().trim();
                     String clienNumero = row1[3].toString().trim();
                     String clienFechaNac = row1[4].toString().trim();
+                    String sqlConsulPgSeguri = "SELECT pgvcs_des_pgvcs FROM cnxcliac,andpgvcs WHERE (cliac_ide_clien= :cliac_ide_clien OR cliac_usu_virtu= :cliac_usu_virtu) AND cliac_pgt_1=pgvcs_cod_pgvcs";
+                    Query resulPgSeguridad = entityManager.createNativeQuery(sqlConsulPgSeguri);
+                    resulPgSeguridad.setParameter("cliac_ide_clien", clienIdenti);
+                    resulPgSeguridad.setParameter("cliac_usu_virtu", cliacUsuVirtu);
+                    String pgvcs_des_pgvcs = (String) resulPgSeguridad.getSingleResult();
                     allData.put("apellidos", clienApellidos );
                     allData.put("nombres", clienNombres);
                     allData.put("email", clienEmail);
                     allData.put("celular", clienNumero);
                     allData.put("fecha", clienFechaNac);
+                    allData.put("PreguntaSeg", pgvcs_des_pgvcs);
                     allDataList.add(allData);
                     response.put("AllData", allDataList);
                     return new ResponseEntity<>(response, HttpStatus.OK);
@@ -292,6 +358,70 @@ public class DesbloqueoService {
         }
 
     }
+    public ResponseEntity<Map<String, Object>> validarRspSeg(HttpServletRequest request, ValidacionDatos validacionDatos) {
+        try {
+            String cliacUsuVirtu = (String) request.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) request.getAttribute("ClienIdenti");
+            String numSocio = (String) request.getAttribute("numSocio");
+
+            Map<String, Object> allData = new HashMap<>();
+            Map<String, Object> response = new HashMap<>();
+            List<Map<String, Object>> allDataList = new ArrayList<>();
+
+            if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
+                allData.put("message", "Datos del token incompletos");
+                allData.put("status", "DU04");
+                allData.put("errors", "ERROR EN LA AUTENTICACIÓN");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+            }
+            if (validacionDatos.getRespSeguridad().isEmpty()) {
+                allData.put("message", "La respuesta de seguridad no puede estar vacia");
+                allData.put("status", "DU28");
+                allData.put("errors", "ERROR RESPUESTA DE SEGURIDAD");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+                String sqlDatosUsuario = "SELECT cliac_pgt_2 FROM cnxclien, cnxcliac " +
+                        "WHERE clien_ide_clien = :clien_ide_clien AND clien_cod_clien = :clien_cod_clien AND cliac_usu_virtu = :cliac_usu_virtu AND clien_ide_clien = cliac_ide_clien";
+                Query resulDatosVerificadoUser = entityManager.createNativeQuery(sqlDatosUsuario);
+                resulDatosVerificadoUser.setParameter("clien_ide_clien", clienIdenti);
+                resulDatosVerificadoUser.setParameter("clien_cod_clien", numSocio);
+                resulDatosVerificadoUser.setParameter("cliac_usu_virtu", cliacUsuVirtu);
+                String pgvcs_des_pgvcs = (String) resulDatosVerificadoUser.getSingleResult();
+                    if(pgvcs_des_pgvcs.equals(validacionDatos.getRespSeguridad())){
+                        allData.put("message: ", "SI COINCIDE LA RESPUESTA CON LO DE LA BASE DE DATOS " );
+                        allData.put("status: ", "PGTSGOK" );
+                        allDataList.add(allData);
+                        response.put("AllData", allDataList);
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    }else{
+                        allData.put("message", "La contraseña no coincide con el registro realizado por el usuario. ");
+                        allData.put("status", "DU10");
+                        allData.put("errors", "ERROR EN LA AUTENTICACIÓN");
+                        allDataList.add(allData);
+                        response.put("AllData", allDataList);
+                        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+                    }
+        }catch (Exception e){
+            Map<String, Object> errorResponse = new HashMap<>();
+            Map<String, Object> errorData = new HashMap<>();
+            List<Map<String, Object>> errorList = new ArrayList<>();
+            errorData.put("message", "Error interno del servidor");
+            errorData.put("status", "ERROR");
+            errorData.put("errors", e.getMessage());
+            errorList.add(errorData);
+            errorResponse.put("AllData", errorList);
+
+            return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+
+        }
+
+    }
+
+
     public ResponseEntity<Map<String, Object>> cambioContrasena(HttpServletRequest request, CambioContrasena cambioContrasena) {
         String cliacUsuVirtu = (String) request.getAttribute("CliacUsuVirtu");
         String clienIdenti = (String) request.getAttribute("ClienIdenti");
@@ -320,19 +450,18 @@ public class DesbloqueoService {
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
-        if (cambioContrasena.getPassNew().isEmpty()) {
-            allData.put("message", "No puede dejar espacios en blanco en la nueva contraseña.");
+        if (cambioContrasena.getPassNew() == null || cambioContrasena.getPassNew().isEmpty() || cambioContrasena.getPassNew().contains(" ")) {
+            allData.put("message", "La nueva contraseña no puede estar vacía ni contener espacios en blanco.");
             allData.put("status", "AA11");
-            allData.put("errors", "No se aceptan espacios en blanco en la contraseña. ");
+            allData.put("errors", "No se aceptan espacios en blanco en la nueva contraseña.");
             allDataList.add(allData);
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-
         }
-        if (cambioContrasena.getConfPassNew().isEmpty()) {
-            allData.put("message", "No puede dejar espacios en blanco en la confirmacion de la contraseña.");
+        if (cambioContrasena.getConfPassNew() == null || cambioContrasena.getConfPassNew().isEmpty() || cambioContrasena.getConfPassNew().contains(" ")) {
+            allData.put("message", "La confirmación de la contraseña no puede estar vacía ni contener espacios en blanco.");
             allData.put("status", "AA12");
-            allData.put("errors", "No se aceptan espacios en blanco en la contraseña. ");
+            allData.put("errors", "No se aceptan espacios en blanco en la confirmación de la contraseña.");
             allDataList.add(allData);
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -461,14 +590,10 @@ public class DesbloqueoService {
                                     String clienNumero = row2[3].toString().trim();
 
                                     String CodigoDesbloqueo = codigoAleatorio6Temp();
-                                    String FechaGenCodigo = obtenerFechaActual();
-                                    String HoraGenCodigo = obtenerHoraActualHora();
                                     String FechaDesbloqueoUser = obtenerHoraActual();
-                                    String mensajeDesbloqueo = "Estimados socio(a), el código de seguridad para desbloquear el usuario es: " + CodigoDesbloqueo + " Tiempo duración 4 minutos. COAC ANDINA: " + FechaGenCodigo + " a las " + HoraGenCodigo;
-
                                     // Enviar SMS
                                     SendSMS smsDesbloqueo = new SendSMS();
-                                    smsDesbloqueo.sendSMS(clienNumero, "1150", mensajeDesbloqueo);
+                                    smsDesbloqueo.sendSecurityCodeSMS(clienNumero,"1150",CodigoDesbloqueo,"Cambiar Clave", FechaDesbloqueoUser);
 
                                     // Enviar correo
                                     sendEmail enviarCorreo = new sendEmail();
@@ -491,6 +616,8 @@ public class DesbloqueoService {
                                     resultInsertTokenAcceso.setParameter("codaccess_estado", "1");
                                     resultInsertTokenAcceso.setParameter("codaccess_fecha", FechaDesbloqueoUser);
                                     resultInsertTokenAcceso.executeUpdate();
+                                    tokenExpirationService.programarExpiracionToken(clienCedula, CodigoDesbloqueo, "4");
+
                                 }
 
                                 allData.put("message", "PASA ENVÍO CÓDIGO DE 6 CARACTERES OK!");
@@ -524,8 +651,14 @@ public class DesbloqueoService {
                     response.put("AllData", allDataList);
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
+
             }
-            return new ResponseEntity<>(response, HttpStatus.OK);
+            allData.put("message", "La clave temporal de 4 minutos ha expirado y ha dejado de funcionar");
+            allData.put("status", "CC030");
+            allData.put("errors", "CLAVE TEMPORAL NO VALIDA");
+            allDataList.add(allData);
+            response.put("AllData", allDataList);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             Map<String, Object> errorData = new HashMap<>();
@@ -559,9 +692,9 @@ public class DesbloqueoService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
-            String mensajeValidarCodigoSeguridad = validarCodigoSeguridad(codSeguridad);
-            if (mensajeValidarCodigoSeguridad != null) {
-                allData.put("message", mensajeValidarCodigoSeguridad);
+            if (codSeguridad.getCodaccess_codigo_temporal() == null ||
+                    !codSeguridad.getCodaccess_codigo_temporal().matches("^\\d{6}$")) {
+                allData.put("message", "El código de seguridad debe contener exactamente 6 dígitos numéricos.");
                 allData.put("status", "AA021");
                 allData.put("errors", "ERROR EN EL CÓDIGO DE SEGURIDAD");
                 allDataList.add(allData);
@@ -580,7 +713,6 @@ public class DesbloqueoService {
                 String tokenFromDB = (String) queryVerificaTokenBDD.getSingleResult();
                 if (tokenFromDB != null && codSeguridad.getCodaccess_codigo_temporal() != null &&
                         codSeguridad.getCodaccess_codigo_temporal().equals(tokenFromDB.trim())) {
-
                     String sqlExtraerPassBDD = "SELECT virwwwpswdcambio_newpass FROM virwwwpswdcambio " +
                             "WHERE virwwwpswdcambio_cedula = :virwwwpswdcambio_cedula " +
                             "AND virwwwpswdcambio_usuario = :virwwwpswdcambio_usuario " +
@@ -634,10 +766,24 @@ public class DesbloqueoService {
                         try {
                             int rowsUpdated = resultBloqUser.executeUpdate();
                             if (rowsUpdated > 0) {
-                                intentosRealizadoTokenFallos = 0;
-                                response.put("success", false);
-                                response.put("message", "Usuario bloqueado por exceder límite de intentos");
-                                response.put("status", "AA025");
+                                String sqlDatosCorreoIngreso = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email FROM cnxclien, cnxcliac " +
+                                        "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
+                                Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
+                                resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
+                                String FechaHora =  obtenerHoraActual();
+                                List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
+                                for (Object[] row2 : results2) {
+                                    String clienApellidos = row2[0].toString().trim();
+                                    String clienNombres = row2[1].toString().trim();
+                                    String clienEmail = row2[2].toString().trim();
+                                    String IpIngreso = localIP();
+                                    sendEmail emailBloq = new sendEmail();
+                                    emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora, clienEmail, IpIngreso);
+                                    intentosRealizadoTokenFallos = 0;
+                                    response.put("success", false);
+                                    response.put("message", "Usuario bloqueado por exceder límite de intentos");
+                                    response.put("status", "AA025");
+                                }
                             }
                         } catch (Exception e) {
                             response.put("success", false);
@@ -695,7 +841,9 @@ public class DesbloqueoService {
         ){
             return "La fecha de nacimiento no puede estar en blanco";
         }
-
+        if(credencialesDesbloqueo.getTipoIdentificacion() == null || credencialesDesbloqueo.getTipoIdentificacion().isEmpty()){
+            return  "El tipo de identificacion no puede estar vacio";
+        }
         return null;
     }
 
@@ -748,9 +896,8 @@ public class DesbloqueoService {
                         String FechaGenCodigo = obtenerFechaActual();
                         String HoraGenCodigo = obtenerHoraActualHora();
                         String FechaDesbloqueoUser = obtenerHoraActual();
-                        String mensajeDesbloqueo = "Estimados socio(a), el codigo de seguridad para desbloquear el usuario es: " + CodigoDesbloqueo + " Tiempo duracion 4 minutos. COAC ANDINA: " + FechaGenCodigo + " a las " + HoraGenCodigo;
                         SendSMS smsDesbloqueo = new SendSMS();
-                        smsDesbloqueo.sendSMS(clieNumCelular, "1150", mensajeDesbloqueo);
+                        smsDesbloqueo.sendSecurityCodeSMS(clieNumCelular,"1150",CodigoDesbloqueo,"Desbloquear Usuario",FechaDesbloqueoUser);
                         sendEmail enviarCorreo = new sendEmail();
                         enviarCorreo.sendEmailTokenTemp(clienApellidoClien, clieNomClien, FechaDesbloqueoUser, clieDirEmailCli, CodigoDesbloqueo);
                         String sqlUpdateEstado = "UPDATE vircodaccess SET codaccess_estado = '0' WHERE codaccess_cedula = :codaccess_cedula AND codaccess_estado = '1' AND codsms_codigo = 4 ";
@@ -768,8 +915,8 @@ public class DesbloqueoService {
                         resultInsertTokenAcceso.setParameter("codsms_codigo", 4);
                         resultInsertTokenAcceso.setParameter("codaccess_estado", "1");
                         resultInsertTokenAcceso.setParameter("codaccess_fecha", FechaDesbloqueoUser);
-
                         resultInsertTokenAcceso.executeUpdate();
+                        tokenExpirationService.programarExpiracionToken(cliacIdeClien, CodigoDesbloqueo, "4");
 
                         String token = JwtUtil.generateToken(cliacUsuVirtual, cliacIdeClien, clienCodigoClien);
                         response.put("success", true);
@@ -806,16 +953,61 @@ public class DesbloqueoService {
         if (request.getCodaccess_codigo_temporal().length() < 4) {
             return "El código temporal debe tener al menos 4 caracteres.";
         }
+        if (request.getCodaccess_codigo_temporal() == null || !request.getCodaccess_codigo_temporal().matches("^[0-9]{4}$")) {
+            return "El código temporal debe contener exactamente 4 dígitos numéricos.";
+        }
 
         return null;
     }
+
+    public String validarCedulaEC(DesbloqueoUser request) {
+        String cedula = request.getClienIdeClien();
+
+        if (cedula == null || cedula.length() != 10 || !cedula.matches("\\d{10}")) {
+            return "Cédula inválida: debe contener 10 dígitos";
+        }
+
+        int[] coeficientes = {2, 1, 2, 1, 2, 1, 2, 1, 2};
+        int suma = 0;
+        int digito;
+
+        for (int i = 0; i < 9; i++) {
+            digito = Character.getNumericValue(cedula.charAt(i)) * coeficientes[i];
+            if (digito > 9) {
+                digito -= 9;
+            }
+            suma += digito;
+        }
+
+        int verificador = 10 - (suma % 10);
+        if (verificador == 10) {
+            verificador = 0;
+        }
+
+        if (verificador != Character.getNumericValue(cedula.charAt(9))) {
+            return "Cédula inválida: dígito verificador incorrecto";
+        }
+
+        return null;
+    }
+
+
+
     public String codigoAleatorio6Temp() {
         // Genera un número aleatorio de 6 dígitos
         Random random = new Random();
         int numeroAleatorio = 100000 + random.nextInt(900000); // Asegura 6 dígitos
         return String.valueOf(numeroAleatorio);
     }
-
+    public static String localIP() {
+        try {
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            return inetAddress.getHostAddress();
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            return "No disponible";
+        }
+    }
     public String codigoAleatorioTemp() {
         // Genera un número aleatorio de 4 dígitos
         Random random = new Random();
