@@ -165,8 +165,6 @@ public class AuthService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
 
-
-
             String sqlVerificaTokenBDD = "SELECT codaccess_codigo_temporal FROM vircodaccess " +
                     "WHERE codaccess_cedula = :codaccess_cedula AND codaccess_usuario = :codaccess_usuario AND codaccess_estado = :codaccess_estado ";
             Query queryVerificaTokenBDD = entityManager.createNativeQuery(sqlVerificaTokenBDD);
