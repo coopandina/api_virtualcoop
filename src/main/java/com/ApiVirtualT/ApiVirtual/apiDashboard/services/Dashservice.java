@@ -883,7 +883,6 @@ public class Dashservice {
     public ResponseEntity<Map<String, Object>> obtenerMovimientos(verMovimientoCta dto, HttpServletRequest token) {
         Map<String, Object> response = new HashMap<>();
         try {
-            // Obtener datos del token
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
 
@@ -898,6 +897,22 @@ public class Dashservice {
             Date fechaDesde = dateFormat.parse(dto.getFechaDesdeCons());
             Date fechaHasta = dateFormat.parse(dto.getFechaHastaCons());
 
+            // Calcular la diferencia en meses entre fechaDesde y fechaHasta
+            Calendar calendarDesde = Calendar.getInstance();
+            calendarDesde.setTime(fechaDesde);
+
+            Calendar calendarHasta = Calendar.getInstance();
+            calendarHasta.setTime(fechaHasta);
+
+            int diffMeses = calendarHasta.get(Calendar.MONTH) - calendarDesde.get(Calendar.MONTH) +
+                    (calendarHasta.get(Calendar.YEAR) - calendarDesde.get(Calendar.YEAR)) * 12;
+
+            if (diffMeses > 3) {
+                response.put("message", "El periodo de búsqueda no puede ser mayor a 3 meses.");
+                response.put("status", "ERROR005");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
             Calendar calendar = Calendar.getInstance();
             calendar.setTime(fechaHasta);
             calendar.set(Calendar.HOUR_OF_DAY, 23);
@@ -905,7 +920,6 @@ public class Dashservice {
             calendar.set(Calendar.SECOND, 59);
             fechaHasta = calendar.getTime();
 
-            // Extraer el año de la fecha inicial
             calendar.setTime(fechaDesde);
             int anoDesde = calendar.get(Calendar.YEAR);
 
@@ -946,15 +960,27 @@ public class Dashservice {
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
 
+            // Calcular saldo inicial
+            double saldoInicial = 0;
+            for (Object[] reg : registros) {
+                String fechaStr = reg[0].toString().trim().substring(0, 19);
+                Date fechaMovimiento = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(fechaStr);
+
+                if (fechaMovimiento.compareTo(fechaDesde) < 0) {
+                    double retiro = reg[8].toString().equals("1") ? Double.parseDouble(reg[3].toString().trim()) : 0;
+                    double deposito = reg[8].toString().equals("1") ? 0 : Double.parseDouble(reg[4].toString().trim());
+                    saldoInicial += deposito - retiro;
+                }
+            }
+
             // Construir y filtrar la lista de movimientos
             List<Map<String, Object>> movimientos = new ArrayList<>();
-            double saldo = 0;
+            double saldo = saldoInicial;
 
             for (Object[] reg : registros) {
                 String fechaStr = reg[0].toString().trim().substring(0, 19);
                 Date fechaMovimiento = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(fechaStr);
 
-                // Filtrar movimientos dentro del rango de fechas proporcionado
                 if (fechaMovimiento.compareTo(fechaDesde) >= 0 && fechaMovimiento.compareTo(fechaHasta) <= 0) {
                     Map<String, Object> movimiento = new HashMap<>();
                     String caja = reg[14].toString().trim();
@@ -963,19 +989,18 @@ public class Dashservice {
                     double retiro = reg[8].toString().equals("1") ? Double.parseDouble(reg[3].toString().trim()) : 0;
                     double deposito = reg[8].toString().equals("1") ? 0 : Double.parseDouble(reg[4].toString().trim());
 
-                    // Calcular saldo
-                    saldo = reg[8].toString().equals("1") ? saldo - retiro : saldo + deposito;
-                    String saldoFormateado = formatMoneda(saldo);
+                    saldo += deposito - retiro;
+
                     movimiento.put("FECHA", fechaStr);
                     movimiento.put("CAJA", caja);
                     movimiento.put("DOCUMENTO", documento);
                     movimiento.put("COMPOSICION", composicion);
                     movimiento.put("RETIRO", retiro);
                     movimiento.put("DEPOSITO", deposito);
-                    movimiento.put("SALDO", saldoFormateado);
-
+                    movimiento.put("SALDO", formatMoneda(saldo));
                     movimientos.add(movimiento);
                 }
+
             }
 
             if (movimientos.isEmpty()) {
@@ -983,7 +1008,7 @@ public class Dashservice {
                 response.put("status", "ERROR004");
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
-
+            response.put("saldoInicial", formatMoneda(saldoInicial));
             response.put("movimientos", movimientos);
             response.put("status", "INFOUSEROK");
             return new ResponseEntity<>(response, HttpStatus.OK);
