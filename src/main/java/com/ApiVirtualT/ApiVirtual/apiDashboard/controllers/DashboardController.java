@@ -1,7 +1,7 @@
 package com.ApiVirtualT.ApiVirtual.apiDashboard.controllers;
 
 
-import com.ApiVirtualT.ApiVirtual.apiDashboard.services.Dashservice;
+import com.ApiVirtualT.ApiVirtual.apiDashboard.services.UtilsTransService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,9 +15,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/dashboard")
 @RequiredArgsConstructor
-public class dashboardController {
+public class DashboardController {
     @Autowired
-    private Dashservice dashservice;
+    private UtilsTransService dashservice;
 
     /**
      * Endpoint para dashboard

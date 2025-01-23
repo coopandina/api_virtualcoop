@@ -5,6 +5,7 @@ import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.UserCre
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
+import com.ApiVirtualT.ApiVirtual.libs.Libs;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,10 +15,8 @@ import org.springframework.stereotype.Service;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
-import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.CambioContrasenaCredencial;
+
 import libs.PassSecure;
 import envioCorreo.sendEmail;
 import sms.SendSMS;
@@ -55,7 +54,6 @@ public class AuthService {
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
-
         String mensajeUsarioNoSerCorreo = usarioNoSerCorreo(request);
         if (mensajeUsarioNoSerCorreo != null) {
             allData.put("message", mensajeUsarioNoSerCorreo);
@@ -189,7 +187,11 @@ public class AuthService {
                                     String clienNumero = row2[3].toString().trim();
                                     System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
                                     String IpIngresoLogin = localIP();
-                                    String FechaIngresoLogin = obtenerHoraActual();
+
+                                    Libs fechaHoraService = new Libs(entityManager);
+                                    String FechaIngresoLogin = fechaHoraService.obtenerFechaYHora();
+                                    System.out.println(FechaIngresoLogin);
+
                                     SendSMS sms = new SendSMS();
                                     sms.sendVirtualAccessSMS(clienNumero, "1150", "VIRTUALCOP",FechaIngresoLogin);
                                     sendEmail enviarCorreo = new sendEmail();
@@ -217,7 +219,9 @@ public class AuthService {
                                                         "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
                                                 Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
                                                 resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
-                                                String FechaHora =  obtenerHoraActual();
+                                                Libs fechaHoraService = new Libs(entityManager);
+                                                String FechaHora = fechaHoraService.obtenerFechaYHora();
+
                                                 List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
                                                 for (Object[] row2 : results2) {
                                                     String clienApellidos = row2[0].toString().trim();
@@ -415,7 +419,11 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                                 String clienCedula = row2[4].toString().trim();
                                 String clienCodClie = row2[5].toString().trim();
                                 System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
-                                String FechaIngresoLogin = obtenerHoraActual();
+                                Libs fechaHoraService = new Libs(entityManager);
+
+                                String FechaIngresoLogin = fechaHoraService.obtenerFechaYHora();
+                                System.out.println(FechaIngresoLogin);
+
                                 String tokenTemp = codigoAleatorioTemp();
 
                                     SendSMS smsCodigoTemp = new SendSMS();
@@ -484,7 +492,8 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                     }else{
                         String accesoDipTermi = localIP();
                         String accesoMacTermi = dirrecionMac();
-                        String accesoFecAcces = obtenerHoraActual();
+                        Libs fechaHoraService = new Libs(entityManager);
+                        String accesoFecAcces = fechaHoraService.obtenerFechaYHora();
                         String accesoCodAcces = generarNumberoSerial(100000, 999999);
                         String accesoDesUsuar = cliacUsuVirtu;
                         String accesoPasUsuar = clienWwwPswrd;
@@ -492,7 +501,6 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                         System.out.println(accesoCodAcces);
                         String sqlInsertAccesos =
                                 "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
-
                         Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
                         resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
                         resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
@@ -519,7 +527,6 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         return response;
     }
 }
-
     public static String localIP() {
         try {
             InetAddress inetAddress = InetAddress.getLocalHost();
@@ -547,9 +554,6 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
             e.printStackTrace();
             return "No disponible";
         }
-    }
-    public static String obtenerHoraActual() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
     public static String generarNumberoSerial(int min, int max) {
         Random random = new Random();

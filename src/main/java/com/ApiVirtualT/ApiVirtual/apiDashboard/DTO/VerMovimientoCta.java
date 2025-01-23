@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class verMovimientoCta {
+public class VerMovimientoCta {
     String ctadp_cod_ctadp;
     String fechaDesdeCons;
     String fechaHastaCons;

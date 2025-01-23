@@ -5,7 +5,7 @@ import com.ApiVirtualT.ApiVirtual.apiAutenticacion.services.TokenExpirationServi
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.CambioContrasena;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.CambioPassUser;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.ValidacionDatos;
-import com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.DTO.DesbloqueoUser;
+import com.ApiVirtualT.ApiVirtual.libs.Libs;
 import envioCorreo.sendEmail;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -23,7 +23,6 @@ import sms.SendSMS;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -153,7 +152,10 @@ public class CambioPassService {
                             && clienCodigoClien.equals(codigoUsuario) && fechaNaciFormateada.equals(fechaNacUsuario)){
                         System.out.println("Los usuarios si coinciden");
                         String CodigoDesbloqueo = codigoAleatorioTemp();
-                        String FechaDesbloqueoUser = obtenerHoraActual();
+                        Libs fechaHoraService = new Libs(entityManager);
+                        String FechaDesbloqueoUser = fechaHoraService.obtenerFechaYHora();
+
+
                         SendSMS smsDesbloqueo = new SendSMS();
                         smsDesbloqueo.sendSecurityCodeSMS(clieNumCelular,"1150",CodigoDesbloqueo,"Actualizar su Clave",FechaDesbloqueoUser);
                         sendEmail enviarCorreo = new sendEmail();
@@ -255,7 +257,9 @@ public class CambioPassService {
                         String clienCedula = row2[4].toString().trim();
                         String clienCodClie = row2[5].toString().trim();
                         System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
-                        String fechaHora  = obtenerHoraActual();
+                        Libs fechaHoraService = new Libs(entityManager);
+                        String fechaHora = fechaHoraService.obtenerFechaYHora();
+
                         String claveLogin = codigoAleatorioTemp();
                         PassSecure encriptarClave = new PassSecure();
                         String claveEncriptadaLogin4 = encriptarClave.encryptPassword(claveLogin);
@@ -285,8 +289,11 @@ public class CambioPassService {
                         sendEmail enviarCorreoClaveTemLogin = new sendEmail();
                         enviarCorreoClaveTemLogin.sendEmailClaveTemp(clienApellidos, clienNombres, fechaHora,clienEmail, claveLogin);
                         SendSMS enviarClave4Login = new SendSMS();
-                        String FechaGenCodigo = obtenerFechaActual();
-                        String HoraGenCodigo = obtenerHoraActualHora();
+                        Libs fechaHoraService1 = new Libs(entityManager);
+                        String FechaGenCodigo = fechaHoraService1.obtenerFecha();
+
+                        String HoraGenCodigo = fechaHoraService1.obtenerHora();
+
                         String mensajeDesbloqueo = "Estimados socio(a), el codigo de seguridad para desbloquear el usuario es: " + claveLogin + " Tiempo duracion 4 minutos. COAC ANDINA: " + FechaGenCodigo + " a las " + HoraGenCodigo;
                         enviarClave4Login.sendSMS(clienNumero,claveLogin, mensajeDesbloqueo);
 
@@ -317,7 +324,9 @@ public class CambioPassService {
                                         "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
                                 Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
                                 resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
-                                String FechaHora =  obtenerHoraActual();
+                                Libs fechaHoraService = new Libs(entityManager);
+                                String FechaHora = fechaHoraService.obtenerFechaYHora();
+
                                 List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
                                 for (Object[] row2 : results2) {
                                     String clienApellidos = row2[0].toString().trim();
@@ -636,7 +645,8 @@ public class CambioPassService {
                             String newPass = cambioContrasena.getPassNew();
                             PassSecure encriptarPass = new PassSecure();
                             String NewPassEncrip = encriptarPass.encryptPassword(newPass);
-                            String fechaActual = obtenerHoraActual();
+                            Libs fechaHoraService = new Libs(entityManager);
+                            String fechaActual = fechaHoraService.obtenerFechaYHora();
 
                             // Actualizar contraseñas anteriores a estado 0
                             String sqlUpdateEstadoPass = "UPDATE virwwwpswdcambio SET virwwwpswdcambio_estado = '0' WHERE virwwwpswdcambio_cedula = :virwwwpswdcambio_cedula AND virwwwpswdcambio_estado = '1' AND codsms_codigo = 5";
@@ -674,7 +684,8 @@ public class CambioPassService {
 
                                     String CodigoDesbloqueo = codigoAleatorio6Temp();
 
-                                    String FechaDesbloqueoUser = obtenerHoraActual();
+                                    Libs fechaHoraService1 = new Libs(entityManager);
+                                    String FechaDesbloqueoUser = fechaHoraService1.obtenerFechaYHora();
 
                                     // Enviar SMS
                                     SendSMS smsDesbloqueo = new SendSMS();
@@ -849,7 +860,9 @@ public class CambioPassService {
                                         "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
                                 Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
                                 resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
-                                String FechaHora =  obtenerHoraActual();
+                                Libs fechaHoraService = new Libs(entityManager);
+                                String FechaHora = fechaHoraService.obtenerFechaYHora();
+
                                 List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
                                 for (Object[] row2 : results2) {
                                     String clienApellidos = row2[0].toString().trim();
@@ -960,15 +973,6 @@ public class CambioPassService {
         Random random = new Random();
         int numeroAleatorio = 1000 + random.nextInt(9000); // Asegura 4 dígitos
         return String.valueOf(numeroAleatorio);
-    }
-    public static String obtenerHoraActualHora() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-    }
-    public static String obtenerFechaActual() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-    }
-    public static String obtenerHoraActual() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
     public static String localIP() {
         try {
