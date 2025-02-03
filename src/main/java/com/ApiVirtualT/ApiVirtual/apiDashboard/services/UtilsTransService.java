@@ -233,6 +233,69 @@ public class UtilsTransService {
         }
     }
 
+    public ResponseEntity<Map<String, Object>> eliminarBeneDirecto(HttpServletRequest token, VerMovimientoCta dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
+                response.put("message", "Token con informacion invalida, intente nuevamente.");
+                response.put("status", "ERROR022");
+                response.put("errors", "Error de token");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String cta_banco = dto.getCtadp_cod_ctadp();
+            System.out.println(cta_banco);
+
+            if (cta_banco == null || !cta_banco.matches("\\d{12}")) {
+                response.put("message", "Número de cuenta inválido");
+                response.put("status", "ERROR003");
+                response.put("errors", "El número de cuenta debe contener exactamente 12 dígitos");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String sql = """
+                    SELECT titular,descripcion,email,telefono_movil,id_persona,cta_banco
+                    	        FROM personas_transferencias WHERE id_persona= :numSocio
+                                AND cta_banco= :cta_banco
+                    			AND tipo_trf='I'
+                    """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("numSocio", numSocio);
+            query.setParameter("cta_banco",cta_banco);
+            List<Object[]> resultados = query.getResultList();
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontro una cuenta asociada para poder eliminar.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+            String sql1 = """
+                    UPDATE personas_transferencias SET vigente='F' 
+                    WHERE id_persona= :id_persona
+                    AND cta_banco= :cta_banco
+                    AND tipo_trf='I'
+                    """;
+            Query queryUpdate = entityManager.createNativeQuery(sql1);
+            queryUpdate.setParameter("id_persona", numSocio);
+            queryUpdate.setParameter("cta_banco", cta_banco);
+            int rowsUpdated = queryUpdate.executeUpdate();
+            if (rowsUpdated > 0) {
+                response.put("message", "Actualización exitosa. Registros modificados: " + rowsUpdated);
+                response.put("status", "SUCCESS");
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            } else {
+                response.put("message", "No se encontró ningún registro para eliminar.");
+                response.put("status", "NO_UPDATE");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR001");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     public ResponseEntity<Map<String, Object>> buscarPorNombreApellido(HttpServletRequest token, VerMovimientoCta dto ) {
         Map<String, Object> response = new HashMap<>();
@@ -415,20 +478,20 @@ public class UtilsTransService {
                 response.put("status", "ERROR003");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            if (benefiCorreo == null || !benefiCorreo.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
-                response.put("message", "El correo del beneficiario tiene una estructura inválida.");
-                response.put("status", "ERROR004");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
+//            if (benefiCorreo == null || !benefiCorreo.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
+//                response.put("message", "El correo del beneficiario tiene una estructura inválida.");
+//                response.put("status", "ERROR004");
+//                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+//            }
             // Validar estadoGuardar
             if (!"1".equals(estadoGuardar)) {
-                response.put("message", "El estado Guardar no permite realizar esta operación.");
-                response.put("status", "ERROR001");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                response.put("message", "PASA A LA TRANSFERENCIA !.");
+                response.put("status", "OK0050B");
+                return new ResponseEntity<>(response, HttpStatus.OK);
             }
 
             String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :idPersona " +
-                    "AND tipo_trf = 'I' AND cta_banco = :ctaBanco AND vigente = 'T'";
+                    "AND tipo_trf = 'I' AND cta_banco = :ctaBanco AND vigente  IN ('T','F') ";
             Query queryCheck = entityManager.createNativeQuery(sqlCheck);
             queryCheck.setParameter("idPersona", numSocio);
             queryCheck.setParameter("ctaBanco", numeroCuenta);
@@ -530,8 +593,6 @@ public class UtilsTransService {
                 response.put("status", "ERROR001");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            int ctropera = 3;
-
             String sql = """
                     SELECT
                         ctadp.ctadp_cod_ctadp,
@@ -607,8 +668,9 @@ public class UtilsTransService {
     }
     public ResponseEntity<Map<String, Object>> validarCtaTransEstado(HttpServletRequest token, VerMovimientoCta dto) {
         Map<String, Object> response = new HashMap<>();
-
         try {
+            Libs fechaHoraService = new Libs(entityManager);
+            String fecha = fechaHoraService.obtenerFecha();
             String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
@@ -630,12 +692,30 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             if(estadoDevCtaTransferir.equals("0")){
+                String sqlVerInfo = """
+                        SELECT * FROM cnxctadp, cnxclien
+                        WHERE ctadp_cod_ctadp = :ctadp_cod_ctadp
+                        AND ctadp_cod_clien = :numSocio
+                        AND clien_ide_clien = :clien_ide_clien
+                        """;
+                Query query1 = entityManager.createNativeQuery(sqlVerInfo);
+                query1.setParameter("ctadp_cod_ctadp",ctadp_cod_ctadp);
+                query1.setParameter("numSocio", numSocio);
+                query1.setParameter("clien_ide_clien", clienIdenti);
+                List<Object[]> resVerifiCta = query1.getResultList();
+                if (resVerifiCta.isEmpty()) {
+                    response.put("message", "La cuenta ingresada no corresponde o no corresponde a la informacion de la cuenta iniciada sesion.");
+                    response.put("status", "ERROR008");
+                    return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+                }
                 String sqlConsulta1 = """
                         SELECT
                             cta.ctadp_cod_ctadp,
                             dep.depos_des_depos,
                             cta.ctadp_sal_dispo,
-                            cta.ctadp_sal_nodis
+                            cta.ctadp_sal_nodis,
+                            cli.clien_nom_clien,
+                            cli.clien_ape_clien
                         FROM
                             cnxclien AS cli
                         INNER JOIN
@@ -659,6 +739,7 @@ public class UtilsTransService {
                             AND dep.depos_ctr_opera = 0
                             AND dep.depos_cod_moned = 2
                             AND opd.opdep_cod_toper = '3'
+                            AND dep.depos_cod_depos IN (1,9)
                             AND cta.ctadp_cod_ctadp <> :ctadp_cod_ctadp
                         ORDER BY
                             cta.ctadp_cod_depos;
@@ -671,7 +752,7 @@ public class UtilsTransService {
 
                 if (resultados.isEmpty()) {
                     response.put("message", "No se encontraron cuentas asociadas.");
-                    response.put("status", "ERROR003");
+                    response.put("status", "ERROR456");
                     return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
                 }
                 List<Map<String, Object>> cuentasList = new ArrayList<>();
@@ -681,27 +762,35 @@ public class UtilsTransService {
                     String txtdesdepos = row[1].toString().trim();
                     String saldoDisponible = row[2].toString().trim();
                     String saldoNoDisponi = row[3].toString().trim();
+                    String nombProCta = row[4].toString().trim();
+                    String apelProCta = row[5].toString().trim();
                     Double salDisForma = Double.parseDouble(saldoDisponible);
                     Double saNoDisForma = Double.parseDouble(saldoNoDisponi);
                     String saldoDisFormateado = formatMoneda(salDisForma);
                     String saldoNoDisFormateado = formatMoneda(saNoDisForma);
 
+
                     cuenta.put("cuenta", txtcodctadp);
                     cuenta.put("descripcion", txtdesdepos);
                     cuenta.put("saldo_disponible", saldoDisFormateado);
                     cuenta.put("salNoDisponibel", saldoNoDisFormateado);
+                    cuenta.put("apellidos", apelProCta);
+                    cuenta.put("nombres", nombProCta);
+                    cuenta.put("fecha", fecha);
                     cuentasList.add(cuenta);
                 }
                 response.put("cuentas", cuentasList);
                 return new ResponseEntity<>(response, HttpStatus.OK);
             }else{
                 String sql = """
-                    SELECT
+                        SELECT
                         ctadp.ctadp_cod_ctadp,
                         ectad.ectad_des_ectad,
                         depos.depos_des_depos,
                         ctadp.ctadp_sal_dispo,
-                        ctadp.ctadp_sal_nodis
+                        ctadp.ctadp_sal_nodis,
+                        clien.clien_nom_clien,
+                        clien.clien_ape_clien
                     FROM
                         cnxctadp AS ctadp
                     INNER JOIN
@@ -722,19 +811,21 @@ public class UtilsTransService {
                         AND depos.depos_ctr_opera = 0
                         AND depos.depos_cod_moned = 2
                         AND ctadp.ctadp_cod_ectad <> '3'
+                        AND ctadp.ctadp_cod_ctadp <> :ctadp_cod_ctadp
                         AND ctadp.ctadp_cod_depos IN (1)
                     ORDER BY
                         ctadp.ctadp_cod_depos;
         """;
                 Query query = entityManager.createNativeQuery(sql);
                 query.setParameter("clien_ide_clien", clienIdenti);
+                query.setParameter("ctadp_cod_ctadp", ctadp_cod_ctadp);
 
                 @SuppressWarnings("unchecked")
                 List<Object[]> resultados = query.getResultList();
 
                 if (resultados.isEmpty()) {
-                    response.put("message", "No se encontraron cuentas asociadas.");
-                    response.put("status", "ERROR002");
+                    response.put("message", "No se puede transferir a su propia cuenta de ahorros. ");
+                    response.put("status", "ERROR014");
                     return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
                 }
                 List<Map<String, Object>> cuentasList = new ArrayList<>();
@@ -745,6 +836,8 @@ public class UtilsTransService {
                     String txtdesdepos = row[2].toString().trim();
                     String saldoDisponible = row[3].toString().trim();
                     String saldoNoDisponi = row[4].toString().trim();
+                    String nombProCta = row[5].toString().trim();
+                    String apelProCta = row[6].toString().trim();
 
                     Double salDisForma = Double.parseDouble(saldoDisponible);
                     Double saNoDisForma = Double.parseDouble(saldoNoDisponi);
@@ -756,6 +849,9 @@ public class UtilsTransService {
                     cuenta.put("descripcion", txtdesdepos);
                     cuenta.put("saldo_disponible", saldoDisFormateado);
                     cuenta.put("salNoDisponibel", saldoNoDisFormateado);
+                    cuenta.put("apellidos", apelProCta);
+                    cuenta.put("nombres", nombProCta);
+                    cuenta.put("fecha", fecha);
                     cuentasList.add(cuenta);
                 }
                 response.put("cuentas", cuentasList);
@@ -764,7 +860,7 @@ public class UtilsTransService {
 
         } catch (Exception e) {
             response.put("message", "Error interno del servidor.");
-            response.put("status", "ERROR003");
+            response.put("status", "ERROR333");
             response.put("errors", e.getMessage());
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }

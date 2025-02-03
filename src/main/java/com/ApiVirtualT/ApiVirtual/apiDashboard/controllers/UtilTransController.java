@@ -54,8 +54,10 @@ public class UtilTransController {
     public ResponseEntity<Map<String, Object>> validarCtaTransEstado(@RequestBody VerMovimientoCta dto, HttpServletRequest token) {
         return utilsTransService.validarCtaTransEstado(token, dto);
     }
-
-
+    @PostMapping("/eliminarBenDirecto")
+    public ResponseEntity<Map<String, Object>> elimBeneDirecto(HttpServletRequest token, @RequestBody VerMovimientoCta dto){
+        return utilsTransService.eliminarBeneDirecto(token, dto);
+    }
 
     //Transferencias interbancarias
     @PostMapping("/listCtaDebitInter")
@@ -82,10 +84,6 @@ public class UtilTransController {
     public ResponseEntity<Map<String, Object>> buscarInstitucionFinan(HttpServletRequest token, @RequestBody VerMovimientoCta dto) {
         return utilsTransService.buscarInstiFinanciera(token, dto);
     }
-
-
-
-
 
 
 

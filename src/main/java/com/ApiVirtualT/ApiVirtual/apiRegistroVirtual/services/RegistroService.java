@@ -124,11 +124,18 @@ public class RegistroService {
             resulValidarCampos.setParameter("clien_ide_clien", identificacionClien);
             resulValidarCampos.setParameter("clien_www_ctrpw", claveControlEncriptada);
             resulValidarCampos.setParameter("clien_fec_nacim", fechaNacClien);
+            String sqlValCliac = """
+                    SELECT cliac_ide_clien FROM cnxcliac WHERE cliac_ide_clien = :cliac_ide_clien
+                    """;
+            Query resultValCliac = entityManager.createNativeQuery(sqlValCliac);
+            resultValCliac.setParameter("cliac_ide_clien", identificacionClien);
+            List<?> resultadosCliac = resultValCliac.getResultList();
+
             List<?> resultados = resulValidarCampos.getResultList();
             SimpleDateFormat formatoFecha = new SimpleDateFormat("dd/MM/yyyy");
             for (Object resultado : resultados) {
                 Object[] row = (Object[]) resultado;
-                if (row != null) {
+                if (resultadosCliac.isEmpty()) {
                     String clienteId = row[0].toString().trim();
                     Date fechaNacimiento = (Date) row[2];
                     String fechaFormateada = formatoFecha.format(fechaNacimiento).trim();
@@ -154,6 +161,13 @@ public class RegistroService {
                     allDataList.add(allData);
                     response.put("AllData", allDataList);
                     return new ResponseEntity<>(response, HttpStatus.OK);
+                }
+                else{
+                    allData.put("error", "EL usuario ya se encuentra registrado :(");
+                    allData.put("status", "CU007");
+                    allDataList.add(allData);
+                    response.put("AllData", allDataList);
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
             }
             if (resultados.isEmpty()) {
@@ -258,15 +272,6 @@ public class RegistroService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            // Validar caracteres especiales
-            if (!crearUsuario.getUsuario().matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?].*")) {
-                allData.put("message", "El usuario debe contener al menos un carácter especial (!@#$%^&*()_+-=[]{}:\"\\|,.<>/?').");
-                allData.put("status", "AA27");
-                allData.put("errors", "Falta carácter especial en el usuario.");
-                allDataList.add(allData);
-                response.put("AllData", allDataList);
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
             // Validar que no contenga espacios
             if (crearUsuario.getUsuario().contains(" ")) {
                 allData.put("message", "El usuario no puede contener espacios.");
@@ -360,7 +365,22 @@ public class RegistroService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-
+            String nomUsario = crearUsuario.getUsuario();
+            String sqlValUsario = """
+                    SELECT COUNT(*) AS total
+                    FROM cnxcliac
+                    WHERE LOWER(cliac_usu_virtu) = LOWER(:cliac_usu_virtu);
+                    """;
+            Query sqlValUsarios = entityManager.createNativeQuery(sqlValUsario);
+            sqlValUsarios.setParameter("cliac_usu_virtu","'" + nomUsario + "'");
+            List<?> resultadosValUsu = sqlValUsarios.getResultList();
+            if(!resultadosValUsu.equals("0")){
+                allData.put("status", "CU45ERROR");
+                allData.put("errors", "Usuario no disponible !!!");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
             String sqlValidarDatos = "SELECT clien_ide_clien,  clien_fec_nacim FROM cnxclien " +
                     "WHERE clien_ide_clien = :clien_ide_clien AND clien_fec_nacim = TO_DATE(:clien_fec_nacim, '%d/%m/%Y')";
             Query resulValidarCampos = entityManager.createNativeQuery(sqlValidarDatos);

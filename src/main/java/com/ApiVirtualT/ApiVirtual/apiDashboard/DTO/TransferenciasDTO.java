@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class TransDirecDTO {
+public class TransferenciasDTO {
     String ctaEnvio;
     String ctaDestino;
     String codTempTransDirec;

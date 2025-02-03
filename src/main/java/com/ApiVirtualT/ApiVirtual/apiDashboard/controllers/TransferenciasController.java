@@ -1,6 +1,6 @@
 package com.ApiVirtualT.ApiVirtual.apiDashboard.controllers;
 
-import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.TransDirecDTO;
+import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.TransferenciasDTO;
 import com.ApiVirtualT.ApiVirtual.apiDashboard.services.TransferenciasDirecService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -24,16 +24,21 @@ public class TransferenciasController {
 
     //Transferencias Directas
     @PostMapping("/srtGrabarDirectas")
-    public ResponseEntity<Map<String, Object>> srtGrabarDir(@RequestBody TransDirecDTO dto, HttpServletRequest token) {
+    public ResponseEntity<Map<String, Object>> srtGrabarDir(@RequestBody TransferenciasDTO dto, HttpServletRequest token) {
         return transferenciasService.srtGrabarDir(token, dto);
     }
     @PostMapping("/codTempDirectas")
-    public ResponseEntity<Map<String, Object>> codTempDirectas(HttpServletRequest token, @RequestBody TransDirecDTO dto){
+    public ResponseEntity<Map<String, Object>> codTempDirectas(HttpServletRequest token, @RequestBody TransferenciasDTO dto){
         return transferenciasService.genCodDirectas(token, dto);
     }
 
     //Transferencias interbancarias
-
-
-
+    @PostMapping("/srtGrabarInterbn")
+    public ResponseEntity<Map<String, Object>> srtGrabarInterbn(HttpServletRequest token, @RequestBody TransferenciasDTO dto){
+        return transferenciasService.srtGrabarInterban(token, dto);
+    }
+    @PostMapping("/codTempInterbancarias")
+    public ResponseEntity<Map<String, Object>> codTempInterbancarias(HttpServletRequest token, @RequestBody TransferenciasDTO dto){
+        return transferenciasService.genCodInterbancarias(token, dto);
+    }
 }
