@@ -41,4 +41,19 @@ public class TransferenciasController {
     public ResponseEntity<Map<String, Object>> codTempInterbancarias(HttpServletRequest token, @RequestBody TransferenciasDTO dto){
         return transferenciasService.genCodInterbancarias(token, dto);
     }
+
+    //PAGO TARJETAS
+    @PostMapping("/codTempPgTarjetas")
+    public ResponseEntity<Map<String, Object>> codTemppgTarjetas(HttpServletRequest token, @RequestBody TransferenciasDTO dto){
+        return transferenciasService.genCodInterbancarias_PgTj(token, dto);
+    }
+    @PostMapping("/srtGrabarPgTarjetas")
+    public ResponseEntity<Map<String, Object>> srtGrabarPgTarjetas(HttpServletRequest token, @RequestBody TransferenciasDTO dto){
+        return transferenciasService.srtGrabarPgTarjetas(token, dto);
+    }
+
+
+
+
+
 }

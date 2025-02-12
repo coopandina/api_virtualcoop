@@ -362,6 +362,8 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
             }
             PassSecure passSecure = new PassSecure();
             String passDec = passSecure.decryptPassword(clienWwwPswrd);
+            String prueba = passSecure.encryptPassword("{\\\"Serial\\\":\\\"10D1BFBAE-B3EF60831-AA3F84F9A-017526EB1\\\",\\\"Cedula\\\":\\\"0504267089\\\",\\\"UserName\\\":\\\"ronycando\\\",\\\"FullUserName\\\":\\\"RONY ISRAEL CANDO JACOME\\\"}");
+            System.err.println(prueba);
             passDec = passDec.trim();
             if (passDec.startsWith("\"") && passDec.endsWith("\"")) {
                 passDec = passDec.substring(1, passDec.length() - 1).trim();

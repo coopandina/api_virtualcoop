@@ -8,6 +8,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import jakarta.servlet.http.HttpServletRequest;
+import libs.PassSecure;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -30,11 +33,66 @@ public class UtilsTransService {
     private TokenExpirationService tokenExpirationService;
     int intentosRealizadoTokenFallos = 0;
     //UTILS TRANSFERENCIAS DIRECTAS
+
+    public ResponseEntity<Map<String, Object>> genQRCode(HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            String sql = """
+                    SELECT clien_ide_clien, clien_nom_clien, clien_ape_clien, cliac_usu_virtu FROM cnxclien, cnxcliac\s
+                    WHERE clien_cod_clien  = :clien_cod_clien
+                    AND clien_ide_clien = cliac_ide_clien
+                    """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("clien_cod_clien", numSocio);
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontro informacion necesaria para generar el token.");
+                response.put("status", "ERROR0033");
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+            List<Map<String, Object>> cuentasList = new ArrayList<>();
+            for (Object[] row : resultados) {
+                Map<String, Object> cuenta = new HashMap<>();
+                String cedula =   row[0].toString().trim();
+                String nombres =  row[1].toString().trim();
+                String apellidos  =  row[2].toString().trim();
+                String usuarios = row[3].toString().trim();
+                String concatenado = nombres + " " + apellidos;
+                // Generamos el serial dinámicamente
+                String hexfinal = generateHexa();
+
+                // Construimos el string JSON dinámicamente con el serial incluido
+                String prueba = String.format(
+                        "{\\\"Serial\\\":\\\"%s\\\",\\\"Cedula\\\":\\\"%s\\\",\\\"UserName\\\":\\\"%s\\\",\\\"FullUserName\\\":\\\"%s\\\"}",
+                        hexfinal, cedula, usuarios, concatenado
+                );
+                PassSecure passSecure = new PassSecure();
+                String encryptedPrueba = passSecure.encryptPassword(prueba);
+                String cleanToken = encryptedPrueba.replaceAll("^\"|\"$", "");
+                cuenta.put("token", cleanToken);
+                cuentasList.add(cuenta);
+            }
+            response.put("qr", cuentasList);
+            response.put("status", "TOKENQROK");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR001");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     public ResponseEntity<Map<String,Object>> inforUsuarios (HttpServletRequest token){
         Map<String, Object> response = new HashMap<>();
         List<Map<String, Object>> allDataList = new ArrayList<>();
         try{
-
             String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
@@ -884,7 +942,8 @@ public class UtilsTransService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
-            String sqlListCtaTransferibles = "SELECT ctadp_cod_depos,ctadp_cod_ctadp,depos_des_depos,ctadp_cod_ectad " +
+            String sqlListCtaTransferibles = "SELECT ctadp_cod_depos,ctadp_cod_ctadp,depos_des_depos,ctadp_cod_ectad, " +
+                    "clien_nom_clien, clien_ape_clien " +
                     "FROM cnxclien,cnxctadp,cnxdepos,cnxopdep " +
                     "WHERE clien_ide_clien= :clien_ide_clien " +
                     "AND ctadp_cod_empre=clien_cod_empre " +
@@ -912,12 +971,17 @@ public class UtilsTransService {
                 response.put("error", "No se encontraron cuentas para transferir en la bdd");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
+            Libs lib = new Libs(entityManager);
+            String fecha = lib.obtenerFecha();
+
             List<Map<String, Object>> cuentas = new ArrayList<>();
             for(Object [] row : listCta){
                 String codDepos = row[0].toString().trim();
                 String numCta = row[1].toString().trim();
                 String descrCta = row[2].toString().trim();
                 String ectaCta = row[3].toString().trim();
+                String nombreClien = row[4].toString().trim();
+                String apelliClien = row[5].toString().trim();
                 String saldoCta = obtenerSaldoDisponible(numCta);
                 Double saldoDouble = Double.parseDouble(saldoCta);
                 String saldoTransfor = formatMoneda(saldoDouble);
@@ -927,6 +991,9 @@ public class UtilsTransService {
                 cuenta.put("descrCta", descrCta);
                 cuenta.put("estadCta", ectaCta);
                 cuenta.put("saldoCta", "$" + saldoTransfor);
+                cuenta.put("nombre",nombreClien);
+                cuenta.put("apellido", apelliClien);
+                cuenta.put("fecha", fecha);
                 cuentas.add(cuenta);
             }
             response.put("Cuentas Transferibles", cuentas);
@@ -1007,9 +1074,9 @@ public class UtilsTransService {
                 beneficiario.put("idPersona",idPersona);
                 beneficiario.put("tipoIdentificacion", tipoIdentifi);
                 beneficiario.put("numIdentificacion", numidentificaciCta);
-                beneficiario.put("tipo prodcuto", tipoProdBanco);
-                beneficiario.put("cuenta Banco", ctaBanco);
-                beneficiario.put("entidad financiera", entidadFinaCta);
+                beneficiario.put("tipoproducto", tipoProdBanco);
+                beneficiario.put("cuentaBanco", ctaBanco);
+                beneficiario.put("entidadfinanciera", entidadFinaCta);
                 beneficiario.put("tipoCta", tipoCta);
                 beneficiarios.add(beneficiario);
             }
@@ -1138,6 +1205,366 @@ public class UtilsTransService {
         }
     }
 
+    //PAGO TARJETAS DE CREDITO
+    public ResponseEntity<Map<String, Object>>ctaDebitarPagTarjetas(HttpServletRequest token){
+        Map<String, Object> response = new HashMap<>();
+        Map<String, Object> allData = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+            if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
+                List<Map<String, Object>> allDataList =  new ArrayList<>();
+                allData.put("message", "Datos del token incompletos");
+                allData.put("status", "ERRORPGTJER001");
+                allData.put("errors", "ERROR EN LA AUTENTICACIÓN");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+            }
+            String sqlListCtaTransferibles = "SELECT ctadp_cod_depos,ctadp_cod_ctadp,depos_des_depos,ctadp_cod_ectad, " +
+                    "clien_nom_clien, clien_ape_clien " +
+                    "FROM cnxclien,cnxctadp,cnxdepos,cnxopdep " +
+                    "WHERE clien_ide_clien= :clien_ide_clien " +
+                    "AND ctadp_cod_empre=clien_cod_empre " +
+                    "AND ctadp_cod_ofici=clien_cod_ofici " +
+                    "AND ctadp_cod_clien=clien_cod_clien " +
+                    "AND ctadp_cod_depos=1 " +
+                    "AND depos_cod_empre=ctadp_cod_empre " +
+                    "AND depos_cod_ofici=ctadp_cod_ofici " +
+                    "AND depos_cod_depos=ctadp_cod_depos " +
+                    "AND depos_ctr_opera=0 " +
+                    "AND depos_cod_moned=2 " +
+                    "AND opdep_cod_empre=ctadp_cod_empre " +
+                    "AND opdep_cod_ofici=ctadp_cod_ofici " +
+                    "AND opdep_cod_depos=ctadp_cod_depos " +
+                    "AND opdep_cod_ectad=ctadp_cod_ectad " +
+                    "AND opdep_cod_toper = 3 " +
+                    "ORDER BY depos_cod_depos ";
+            Query queryListCtaTransferibles = entityManager.createNativeQuery(sqlListCtaTransferibles);
+            queryListCtaTransferibles.setParameter("clien_ide_clien", clienIdenti);
+            List<Object[]> listCta = queryListCtaTransferibles.getResultList();
+
+            if(listCta.isEmpty()){
+                response.put("message", "No posee cuentas disponibles para transfererir");
+                response.put("status", "ERRORPGTJ002");
+                response.put("error", "No se encontraron cuentas para transferir en la bdd");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            Libs libreria = new Libs(entityManager);
+            String fecha = libreria.obtenerFecha();
+            List<Map<String, Object>> cuentas = new ArrayList<>();
+            for(Object [] row : listCta){
+                String codDepos = row[0].toString().trim();
+                String numCta = row[1].toString().trim();
+                String descrCta = row[2].toString().trim();
+                String ectaCta = row[3].toString().trim();
+                String nombre = row[4].toString().trim();
+                String apellido = row[5].toString().trim();
+                String saldoCta = obtenerSaldoDisponible(numCta);
+                Double saldoDouble = Double.parseDouble(saldoCta);
+                String saldoTransfor = formatMoneda(saldoDouble);
+                Map<String, Object> cuenta =  new HashMap<>();
+                cuenta.put("codigoCta", codDepos);
+                cuenta.put("numeroCta", numCta);
+                cuenta.put("descrCta", descrCta);
+                cuenta.put("estadCta", ectaCta);
+                cuenta.put("saldoCta", "$" + saldoTransfor);
+                cuenta.put("nombre", nombre);
+                cuenta.put("apellido", apellido);
+                cuenta.put("fecha", fecha);
+                cuentas.add(cuenta);
+            }
+            response.put("Cuentas Transferibles", cuentas);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    public ResponseEntity<Map<String, Object>>listBeneficiariosTarjetas(HttpServletRequest token){
+        Map<String, Object> response = new HashMap<>();
+        Map<String, Object> allData = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+            if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
+                List<Map<String, Object>> allDataList =  new ArrayList<>();
+                allData.put("message", "Datos del token incompletos");
+                allData.put("status", "ERRORTRFINTER001");
+                allData.put("errors", "ERROR EN LA AUTENTICACIÓN");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+            }
+            String sqlListBeneficiariosExternos =
+                    "SELECT p.titular, " +
+                            "       p.descripcion, " +
+                            "       p.email, " +
+                            "       p.telefono_movil, " +
+                            "       p.id_persona, " +
+                            "       p.tipo_identificacion, "  +
+                            "       p.cedula, " +
+                            "       p.tipo_prod_banc, " +
+                            "       p.cta_banco, " +
+                            "       CASE " +
+                            "           WHEN p.tipo_trf = 'E' THEN " +
+                            "               (SELECT ifspi_nom_ifspi FROM cnxifspi WHERE ifspi_cod_ifspi = p.id_banco) " +
+                            "           ELSE NULL " +
+                            "       END AS entidad_financiera, " +
+                            "       p.tipo_trf " +
+                            "FROM personas_transferencias p " +
+                            "WHERE p.id_persona = :numSocio "+
+                            "  AND p.vigente = 'T' " +
+                            "  AND p.tipo_trf = 'E' " +
+                            "  AND p.tipo_prod_banc IN ('TC')";
+
+            Query queryListBeneExternos = entityManager.createNativeQuery(sqlListBeneficiariosExternos);
+            queryListBeneExternos.setParameter("numSocio", numSocio);
+            List<Object[]> resulBeneExternos = queryListBeneExternos.getResultList();
+            if(resulBeneExternos.isEmpty()){
+                response.put("message", "No posee tarjetas registradas asociadas a su cuenta");
+                response.put("status", "ERRPGTJ002");
+                response.put("error", "No se encontraron tarjetas registradas en la bdd");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            List<Map<String, Object>> beneficiarios = new ArrayList<>();
+            for(Object [] row : resulBeneExternos){
+                String titularCta = row[0].toString().trim();
+                String descripcionCta = row[1].toString().trim();
+                String emailCta = row[2].toString().trim();
+                String tlfCta = row[3].toString().trim();
+                String idPersona = row[4].toString().trim();
+                String tipoIdentifi = row[5].toString().trim();
+                String numidentificaciCta = row[6].toString().trim();
+                String tipoProdBanco = row[7].toString().trim();
+                String ctaBanco = row[8].toString().trim();
+                String entidadFinaCta = row[9].toString().trim();
+                String tipoCta = row[10].toString().trim();
+
+                Map<String, Object> beneficiario =  new HashMap<>();
+                beneficiario.put("titular", titularCta);
+                beneficiario.put("descripcion", descripcionCta);
+                beneficiario.put("email", emailCta);
+                beneficiario.put("telefono", tlfCta);
+                beneficiario.put("idPersona",idPersona);
+                beneficiario.put("tipoIdentificacion", tipoIdentifi);
+                beneficiario.put("numIdentificacion", numidentificaciCta);
+                beneficiario.put("tipo prodcuto", tipoProdBanco);
+                beneficiario.put("cuenta Banco", ctaBanco);
+                beneficiario.put("entidad financiera", entidadFinaCta);
+                beneficiario.put("tipoCta", tipoCta);
+                beneficiarios.add(beneficiario);
+            }
+            beneficiarios.sort(Comparator.comparing(b -> b.get("titular").toString()));
+            response.put("Tarjetas de credito", beneficiarios);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    public ResponseEntity<Map<String, Object>> guardarTarjetas(HttpServletRequest request, InterbancariasDTO dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) request.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) request.getAttribute("ClienIdenti");
+            String numSocio = (String) request.getAttribute("numSocio");
+
+            if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
+                response.put("message", "Datos del token incompletos");
+                response.put("status", "ERRORTRFINTER001");
+                response.put("errors", "ERROR EN LA AUTENTICACIÓN");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String numTarjeta = dto.getNumTarjeta();
+            String tipoCuenta = dto.getTipoCuenta();
+            String tipoTarjeta= dto.getTipoTarjeta();
+            String estadoGuardar = dto.getEstadoGuardarBenefici();
+            String benefiCorreo = dto.getCorreoElectronico();
+            String movilInter = dto.getNumCelular();
+            String nombreTitular = dto.getNombreTitularCta();
+            String codInstitucion = dto.getCodInstitucion();
+            String numIdentificacion = dto.getNumIdentifiacion();
+            String tipoIdentificacion = dto.getTipIdentiCta();
+            // Validaciones de datos
+            if (movilInter == null || movilInter.isEmpty() || !movilInter.matches("\\d+")) {
+                response.put("message", "El número de celular solo puede contener números y no puede estar vacío o nulo.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (nombreTitular == null || nombreTitular.isEmpty() || nombreTitular.length() > 250 || !nombreTitular.matches("^[a-zA-Z\\s]+$")) {
+                response.put("message", "El nombre del titular solo puede contener letras y espacios, no puede exceder los 250 caracteres, y no puede estar vacío o nulo.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            if (codInstitucion == null || codInstitucion.isEmpty() || !codInstitucion.matches("\\d+")) {
+                response.put("message", "El código de institución solo puede contener números y no puede estar vacío o nulo.");
+                response.put("status", "ERROR003");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            if (numIdentificacion == null || numIdentificacion.isEmpty() || !numIdentificacion.matches("\\d+")) {
+                response.put("message", "El número de identificación solo puede contener números y no puede estar vacío o nulo.");
+                response.put("status", "ERROR004");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            if (tipoIdentificacion == null || tipoIdentificacion.isEmpty() || !tipoIdentificacion.matches("^[a-zA-Z]+$")) {
+                response.put("message", "El tipo de identificación solo puede contener letras y no puede estar vacío o nulo.");
+                response.put("status", "ERROR005");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            // Validaciones de datos
+            if (numTarjeta == null ) {
+                response.put("message", "El número de tarjeta no puede estar vacio o null.");
+                response.put("status", "ERROR006");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (!"1".equals(estadoGuardar) && !"0".equals(estadoGuardar)) {
+                response.put("message", "El estado solo puede ser '1' o '0'.");
+                response.put("status", "ERROR007");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (benefiCorreo == null || !benefiCorreo.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
+                response.put("message", "El correo del beneficiario tiene una estructura inválida.");
+                response.put("status", "ERROR008");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            if (!"1".equals(estadoGuardar)) {
+                response.put("message", "Avanza sin almacenar informacion del usuario !");
+                response.put("status", "ERROR009");
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            }
+            Libs fechaHoraService = new Libs(entityManager);
+            String fecha = fechaHoraService.obtenerFechaYHora();
+            System.out.println(fecha);
+
+            // Verificar si ya existe un beneficiario
+            String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E'";
+            Query queryCheck = entityManager.createNativeQuery(sqlCheck);
+            queryCheck.setParameter("clienCodClien", numSocio);
+            queryCheck.setParameter("ctaBanco", numTarjeta);
+
+            List<Object> resultadosCheck = queryCheck.getResultList();
+            if (!resultadosCheck.isEmpty()) {
+                String sqlUpdate = "UPDATE personas_transferencias SET email = :email, telefono_movil = :movil, vigente = 'T' WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' ";
+                Query queryUpdate = entityManager.createNativeQuery(sqlUpdate);
+                queryUpdate.setParameter("email", benefiCorreo);
+                queryUpdate.setParameter("movil", movilInter);
+                queryUpdate.setParameter("clienCodClien", numSocio);
+                queryUpdate.setParameter("ctaBanco", numTarjeta);
+                queryUpdate.executeUpdate();
+                response.put("message", "Beneficiario actualizado exitosamente.");
+                response.put("status", "GBOK001");
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            }
+            // Insertar un nuevo beneficiario
+            String sqlInsert = "INSERT INTO personas_transferencias (id_persona, id_banco, cta_banco, tipo_prod_banc, titular, descripcion, tipo_trf, fecha_alta, user_name_oficial, cedula, tipo_identificacion, email, telefono_movil, vigente) " +
+                    "VALUES (:clienCodClien, :insBeneInter, :ctaBanco, :tipoCuenta , :nomTitular, :benefiDetalle, 'E', :fechaAlta, :userName, :ideBeneficiario, :tipIden, :email, :movil, 'T')";
+            Query queryInsertBeneficiario = entityManager.createNativeQuery(sqlInsert);
+            queryInsertBeneficiario.setParameter("tipoCuenta",tipoCuenta );
+            queryInsertBeneficiario.setParameter("clienCodClien", numSocio);
+            queryInsertBeneficiario.setParameter("insBeneInter", codInstitucion);
+            queryInsertBeneficiario.setParameter("ctaBanco", numTarjeta);
+            queryInsertBeneficiario.setParameter("nomTitular", nombreTitular);
+            queryInsertBeneficiario.setParameter("benefiDetalle", numTarjeta + " - " + tipoTarjeta);
+            queryInsertBeneficiario.setParameter("fechaAlta", fecha);
+            queryInsertBeneficiario.setParameter("userName", clienIdenti);
+            queryInsertBeneficiario.setParameter("ideBeneficiario", numIdentificacion);
+            queryInsertBeneficiario.setParameter("tipIden", tipoIdentificacion);
+            queryInsertBeneficiario.setParameter("email", benefiCorreo);
+            queryInsertBeneficiario.setParameter("movil", movilInter);
+            queryInsertBeneficiario.executeUpdate();
+            response.put("message", "Tarjeta registrada exitosamente.");
+            response.put("status", "GBOK002");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error interno del servidor");
+            errorResponse.put("status", "ERROR001");
+            errorResponse.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    public ResponseEntity<Map<String, Object>> eliminarTarjetaPj(HttpServletRequest token, InterbancariasDTO dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
+                response.put("message", "Token con informacion invalida, intente nuevamente.");
+                response.put("status", "ERROR022");
+                response.put("errors", "Error de token");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String cta_banco = dto.getNumTarjeta();
+            System.out.println(cta_banco);
+
+            if (cta_banco == null || !cta_banco.matches("\\d+")) {
+                response.put("message", "Número de tarjeta inválido");
+                response.put("status", "ERROR003");
+                response.put("errors", "El numero de tarjeta no puede estar en blanco o contener caracteres diferentes a numeros");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String sql = """
+                    SELECT titular,descripcion,email,telefono_movil,id_persona,cta_banco
+                    	        FROM personas_transferencias WHERE id_persona= :numSocio
+                                AND cta_banco= :cta_banco
+                    			AND tipo_trf='E'
+                    			AND tipo_prod_banc = 'TC'
+                    """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("numSocio", numSocio);
+            query.setParameter("cta_banco",cta_banco);
+            List<Object[]> resultados = query.getResultList();
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontro una tarjeta de credito asociada a su cuenta para poder eliminar.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+            String sql1 = """
+                    UPDATE personas_transferencias SET vigente='F'
+                    WHERE id_persona= :id_persona
+                    AND cta_banco= :cta_banco
+                    AND tipo_trf='E'
+                    AND tipo_prod_banc = 'TC'
+                    """;
+            Query queryUpdate = entityManager.createNativeQuery(sql1);
+            queryUpdate.setParameter("id_persona", numSocio);
+            queryUpdate.setParameter("cta_banco", cta_banco);
+            int rowsUpdated = queryUpdate.executeUpdate();
+            if (rowsUpdated > 0) {
+                response.put("message", "Actualización exitosa. Registros modificados: " + rowsUpdated);
+                response.put("status", "SUCCESS");
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            } else {
+                response.put("message", "No se encontró ningún registro para eliminar.");
+                response.put("status", "NO_UPDATE");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR001");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
+
+
+
+
     public ResponseEntity<Map<String, Object>> guardarBeneInterbancario(HttpServletRequest request, InterbancariasDTO dto) {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -1192,48 +1619,48 @@ public class UtilsTransService {
             // Validaciones de datos
             if (numCuenta == null ) {
                 response.put("message", "El número de cuenta no puede estar vacio o null.");
-                response.put("status", "ERROR002");
+                response.put("status", "ERROR006");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             if (!"1".equals(estadoGuardar) && !"0".equals(estadoGuardar)) {
                 response.put("message", "El estado solo puede ser '1' o '0'.");
-                response.put("status", "ERROR003");
+                response.put("status", "ERROR007");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             if (benefiCorreo == null || !benefiCorreo.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
                 response.put("message", "El correo del beneficiario tiene una estructura inválida.");
-                response.put("status", "ERROR004");
+                response.put("status", "ERROR008");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
 
             if (!"1".equals(estadoGuardar)) {
-                response.put("message", "El estado Guardar no permite realizar esta operación.");
-                response.put("status", "ERROR001");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                response.put("message", "Avanza sin almacenar informacion del usuario !");
+                response.put("status", "ERROR009");
+                return new ResponseEntity<>(response, HttpStatus.OK);
             }
             Libs fechaHoraService = new Libs(entityManager);
             String fecha = fechaHoraService.obtenerFechaYHora();
             System.out.println(fecha);
 
             // Verificar si ya existe un beneficiario
-            String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' AND vigente = 'T'";
+            String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E'";
             Query queryCheck = entityManager.createNativeQuery(sqlCheck);
             queryCheck.setParameter("clienCodClien", numSocio);
             queryCheck.setParameter("ctaBanco", numCuenta);
+            //List<Object> resultadosCheck = queryCheck.getResultList();
+//            if (!resultadosCheck.isEmpty()) {
+//                response.put("message", "Ya existe un beneficiario con los mismos datos.");
+//                response.put("status", "ERROR0015");
+//                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+//            }
+            // Si no existe, verificar si hay uno con estado 'F'
+//            String sqlCheckInactive = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' AND vigente = 'F'";
+//            Query queryCheckInactive = entityManager.createNativeQuery(sqlCheckInactive);
+//            queryCheckInactive.setParameter("clienCodClien", numSocio);
+//            queryCheckInactive.setParameter("ctaBanco", numCuenta);
             List<Object> resultadosCheck = queryCheck.getResultList();
             if (!resultadosCheck.isEmpty()) {
-                response.put("message", "Ya existe un beneficiario con los mismos datos.");
-                response.put("status", "ERROR007");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-            // Si no existe, verificar si hay uno con estado 'F'
-            String sqlCheckInactive = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' AND vigente = 'F'";
-            Query queryCheckInactive = entityManager.createNativeQuery(sqlCheckInactive);
-            queryCheckInactive.setParameter("clienCodClien", numSocio);
-            queryCheckInactive.setParameter("ctaBanco", numCuenta);
-            List<Object> resultadosInactive = queryCheckInactive.getResultList();
-            if (!resultadosInactive.isEmpty()) {
-                String sqlUpdate = "UPDATE personas_transferencias SET email = :email, telefono_movil = :movil, vigente = 'T' WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' AND vigente = 'F'";
+                String sqlUpdate = "UPDATE personas_transferencias SET email = :email, telefono_movil = :movil, vigente = 'T' WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' ";
                 Query queryUpdate = entityManager.createNativeQuery(sqlUpdate);
                 queryUpdate.setParameter("email", benefiCorreo);
                 queryUpdate.setParameter("movil", movilInter);
@@ -1272,7 +1699,6 @@ public class UtilsTransService {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
     public ResponseEntity<Map<String, Object>> buscarInstiFinanciera(HttpServletRequest request, VerMovimientoCta dto) {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -1329,6 +1755,12 @@ public class UtilsTransService {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+
+
+
+
+
 
     public String obtenerSaldoDisponible(String txtcodctadp) throws Exception {
         try {
@@ -1527,6 +1959,31 @@ public class UtilsTransService {
 
     private String formatMoneda(double monto) {
         return String.format("%.2f", monto);
+    }
+    private String generateHexa() throws NoSuchAlgorithmException {
+        StringBuilder hexaFinal = new StringBuilder();
+        for (int i = 0; i < 4; i++) {
+            String hexa = generateHexSegment();
+            hexaFinal.append(hexa);
+            if (i < 3) {
+                hexaFinal.append("-");
+            }
+        }
+        return hexaFinal.toString();
+    }
+
+    private String generateHexSegment() throws NoSuchAlgorithmException {
+        Random random = new Random();
+        String randomString = String.valueOf(random.nextInt());
+        MessageDigest md = MessageDigest.getInstance("SHA-1");
+        byte[] hashBytes = md.digest(randomString.getBytes());
+        StringBuilder hexString = new StringBuilder();
+        for (int i = 0; i < hashBytes.length && hexString.length() < 9; i++) {
+            String hex = Integer.toHexString(0xff & hashBytes[i]).toUpperCase();
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.substring(0, 9);
     }
 
 }

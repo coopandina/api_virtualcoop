@@ -21,8 +21,18 @@ public class UtilTransController {
     @Autowired
     private UtilsTransService utilsTransService;
 
-    //Transferencias Directas
 
+    //Generar codigo qr
+
+    @PostMapping("/generarQr")
+    public ResponseEntity<Map<String, Object>> genQrCode(HttpServletRequest token){
+        return utilsTransService.genQRCode(token);
+    }
+
+
+
+
+    //Transferencias Directas
     @PostMapping("/listCtaBeneDirectas")
     public ResponseEntity<Map<String, Object>> listBeneDirectos(HttpServletRequest token){
         return utilsTransService.listarCtaBenefDirectos(token);
@@ -58,7 +68,10 @@ public class UtilTransController {
     public ResponseEntity<Map<String, Object>> elimBeneDirecto(HttpServletRequest token, @RequestBody VerMovimientoCta dto){
         return utilsTransService.eliminarBeneDirecto(token, dto);
     }
-
+    @PostMapping("/listarbeneficiarios")
+    public ResponseEntity<Map<String, Object>> litarCtaBeneficiarios(HttpServletRequest token){
+        return utilsTransService.listarCtaBeneficiarios(token);
+    }
     //Transferencias interbancarias
     @PostMapping("/listCtaDebitInter")
     public ResponseEntity<Map<String,Object>>listCuentBeneficiarios(HttpServletRequest token){
@@ -85,12 +98,22 @@ public class UtilTransController {
         return utilsTransService.buscarInstiFinanciera(token, dto);
     }
 
-
-
-    //MIS BENEFICIARIOS
-    @PostMapping("/listarbeneficiarios")
-    public ResponseEntity<Map<String, Object>> litarCtaBeneficiarios(HttpServletRequest token){
-        return utilsTransService.listarCtaBeneficiarios(token);
+    //Pago tarjetas de credito
+    @PostMapping("/ctaDebitarTarjetas")
+    public ResponseEntity<Map<String, Object>> ctaDebitarPagTarjetas(HttpServletRequest token) {
+        return utilsTransService.ctaDebitarPagTarjetas(token);
+    }
+    @PostMapping("/listTarjetasBeneficiarios")
+    public ResponseEntity<Map<String, Object>> listTjBeneficiarios(HttpServletRequest token) {
+        return utilsTransService.listBeneficiariosTarjetas(token);
+    }
+        @PostMapping("/guardarTarjeta")
+    public ResponseEntity<Map<String, Object>> guardarTarjetaPago(HttpServletRequest token, @RequestBody InterbancariasDTO dto) {
+        return utilsTransService.guardarTarjetas(token, dto);
+    }
+    @PostMapping("/eliminarTarjeta")
+    public ResponseEntity<Map<String, Object>> eliminarTarjeta(HttpServletRequest token, @RequestBody InterbancariasDTO dto) {
+        return utilsTransService.eliminarTarjetaPj(token, dto);
     }
 
 

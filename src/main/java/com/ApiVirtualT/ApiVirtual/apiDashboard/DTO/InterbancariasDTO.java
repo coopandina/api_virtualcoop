@@ -15,12 +15,14 @@ public class InterbancariasDTO {
     String tipIdentiCta;
     String numIdentifiacion;
     String nombreTitularCta;
+    String numTarjeta;
     String codInstitucion;
     String tipoCuenta;
     String numCuenta;
     String correoElectronico;
     String numCelular;
     String estadoGuardarBenefici;
+    String tipoTarjeta;
 
     public String getTipIdentiCta() {
         return tipIdentiCta;
@@ -92,5 +94,20 @@ public class InterbancariasDTO {
 
     public void setEstadoGuardarBenefici(String estadoGuardarBenefici) {
         this.estadoGuardarBenefici = estadoGuardarBenefici;
+    }
+    public String getNumTarjeta() {
+        return numTarjeta;
+    }
+
+    public void setNumTarjeta(String numTarjeta) {
+        this.numTarjeta = numTarjeta;
+    }
+
+    public String getTipoTarjeta() {
+        return tipoTarjeta;
+    }
+
+    public void setTipoTarjeta(String tipoTarjeta) {
+        this.tipoTarjeta = tipoTarjeta;
     }
 }
