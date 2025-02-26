@@ -29,6 +29,25 @@ public class UtilTransController {
         return utilsTransService.genQRCode(token);
     }
 
+    //Validar tarjeta de credito
+    @PostMapping("/validarTjCredit")
+    public ResponseEntity<Map<String, Object>> validarTarjetas(HttpServletRequest token, @RequestBody InterbancariasDTO dto){
+        return utilsTransService.valTarjetas(token, dto);
+    }
+
+    //Endpoint desencriptar
+    @PostMapping("/descrypt")
+    public ResponseEntity<Map<String, Object>> descrypt(HttpServletRequest token, @RequestBody InterbancariasDTO dto){
+        return utilsTransService.descrypt(token, dto);
+    }
+    //Endpoint encriptar
+    @PostMapping("/encrypt")
+    public ResponseEntity<Map<String, Object>> encrypt(HttpServletRequest token, @RequestBody InterbancariasDTO dto){
+        return utilsTransService.encrypt(token, dto);
+    }
+
+
+
 
 
 

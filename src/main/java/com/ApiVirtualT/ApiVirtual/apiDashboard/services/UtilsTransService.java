@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import libs.PassSecure;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -79,6 +80,143 @@ public class UtilsTransService {
             }
             response.put("qr", cuentasList);
             response.put("status", "TOKENQROK");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR001");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    public ResponseEntity<Map<String, Object>> descrypt(HttpServletRequest token, InterbancariasDTO dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            String sql = """
+                    SELECT clien_ide_clien, clien_nom_clien, clien_ape_clien, cliac_usu_virtu FROM cnxclien, cnxcliac\s
+                    WHERE clien_cod_clien  = :clien_cod_clien
+                    AND clien_ide_clien = cliac_ide_clien
+                    """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("clien_cod_clien", numSocio);
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontro informacion necesaria para generar el token.");
+                response.put("status", "ERROR0033");
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+
+            String cta_banc = dto.getNumTarjeta();
+            PassSecure decrypt  = new PassSecure();
+            String cta_banco = decrypt.decryptPassword(cta_banc);
+            cta_banco = cta_banco.replace("\"", "");
+            System.err.println(cta_banco);
+
+            response.put("descrypt", cta_banco);
+            response.put("status", "TOKENQROK");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR001");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    public ResponseEntity<Map<String, Object>> encrypt(HttpServletRequest token, InterbancariasDTO dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            String sql = """
+                    SELECT clien_ide_clien, clien_nom_clien, clien_ape_clien, cliac_usu_virtu FROM cnxclien, cnxcliac\s
+                    WHERE clien_cod_clien  = :clien_cod_clien
+                    AND clien_ide_clien = cliac_ide_clien
+                    """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("clien_cod_clien", numSocio);
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontro informacion necesaria para generar el token.");
+                response.put("status", "ERROR0033");
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+
+            String cta_banc = dto.getNumTarjeta();
+            PassSecure encrypt  = new PassSecure();
+            String cta_banco = encrypt.encryptPassword(cta_banc);
+            String cleaned_tj = cta_banco.replaceAll("^\"|\"$", "").replaceAll("\\\\", "");
+            System.err.println(cleaned_tj);
+
+            response.put("encrypt", cleaned_tj);
+            response.put("status", "TOKENQROK");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR001");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
+
+
+    //validar tarjetas
+    public ResponseEntity<Map<String, Object>> valTarjetas(HttpServletRequest token, InterbancariasDTO dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            String sql = """
+                    SELECT clien_ide_clien, clien_nom_clien, clien_ape_clien, cliac_usu_virtu FROM cnxclien, cnxcliac
+                    WHERE clien_cod_clien  = :clien_cod_clien
+                    AND clien_ide_clien = cliac_ide_clien
+                    """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("clien_cod_clien", numSocio);
+            List<Object[]> resultados = query.getResultList();
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontro informacion necesaria para generar el token.");
+                response.put("status", "ERROR0033");
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }
+            String cta_banc = dto.getNumTarjeta();
+            PassSecure decrypt  = new PassSecure();
+            String cta_banco = decrypt.decryptPassword(cta_banc);
+            cta_banco = cta_banco.replace("\"", "");
+            System.err.println(cta_banco);
+
+            if (cta_banco == null || !cta_banco.matches("\\d+")) {
+                response.put("message", "Número de tarjeta inválido");
+                response.put("status", "ERROR003");
+                response.put("errors", "El numero de tarjeta no puede estar en blanco o contener caracteres diferentes a numeros");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            String tipoTarjeta = obtenerTipoTarjeta(cta_banco);
+            response.put("tipoTarjeta", tipoTarjeta);
+
+            boolean esValida = validarTarjetaLuhn(cta_banco);
+            response.put("esValida", esValida);
+
+            if (esValida) {
+                response.put("status", "TARJETA_VALIDA");
+            } else {
+                response.put("status", "TARJETA_INVALIDA");
+            }
+
             return new ResponseEntity<>(response, HttpStatus.OK);
 
         } catch (Exception e) {
@@ -1344,6 +1482,9 @@ public class UtilsTransService {
                 String ctaBanco = row[8].toString().trim();
                 String entidadFinaCta = row[9].toString().trim();
                 String tipoCta = row[10].toString().trim();
+                if (descripcionCta.contains("-")) {
+                    descripcionCta = descripcionCta.split("-")[1].trim();
+                }
 
                 Map<String, Object> beneficiario =  new HashMap<>();
                 beneficiario.put("titular", titularCta);
@@ -1353,9 +1494,14 @@ public class UtilsTransService {
                 beneficiario.put("idPersona",idPersona);
                 beneficiario.put("tipoIdentificacion", tipoIdentifi);
                 beneficiario.put("numIdentificacion", numidentificaciCta);
-                beneficiario.put("tipo prodcuto", tipoProdBanco);
-                beneficiario.put("cuenta Banco", ctaBanco);
-                beneficiario.put("entidad financiera", entidadFinaCta);
+                beneficiario.put("tipoprodcuto", tipoProdBanco);
+
+                PassSecure encripTarjeta = new PassSecure();
+                 String tarjetaEncrip =  encripTarjeta.encryptPassword(ctaBanco);
+                tarjetaEncrip = tarjetaEncrip.replaceAll("^\"|\"$", "").replace("\\", "");
+
+                beneficiario.put("tarjetaCredito", tarjetaEncrip);
+                beneficiario.put("entidadfinanciera", entidadFinaCta);
                 beneficiario.put("tipoCta", tipoCta);
                 beneficiarios.add(beneficiario);
             }
@@ -1382,7 +1528,12 @@ public class UtilsTransService {
                 response.put("errors", "ERROR EN LA AUTENTICACIÓN");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            String numTarjeta = dto.getNumTarjeta();
+            String numTarjet = dto.getNumTarjeta();
+            PassSecure decrypt  = new PassSecure();
+            String numTarjeta = decrypt.decryptPassword(numTarjet);
+            numTarjeta = numTarjeta.replace("\"", "");
+            System.err.println(numTarjeta);
+
             String tipoCuenta = dto.getTipoCuenta();
             String tipoTarjeta= dto.getTipoTarjeta();
             String estadoGuardar = dto.getEstadoGuardarBenefici();
@@ -1437,7 +1588,6 @@ public class UtilsTransService {
                 response.put("status", "ERROR008");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-
             if (!"1".equals(estadoGuardar)) {
                 response.put("message", "Avanza sin almacenar informacion del usuario !");
                 response.put("status", "ERROR009");
@@ -1507,8 +1657,12 @@ public class UtilsTransService {
                 response.put("errors", "Error de token");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            String cta_banco = dto.getNumTarjeta();
-            System.out.println(cta_banco);
+            String cta_banc = dto.getNumTarjeta();
+            PassSecure decrypt  = new PassSecure();
+            String cta_banco = decrypt.decryptPassword(cta_banc);
+            cta_banco = cta_banco.replace("\"", "");
+            System.err.println(cta_banco);
+
 
             if (cta_banco == null || !cta_banco.matches("\\d+")) {
                 response.put("message", "Número de tarjeta inválido");
@@ -1984,6 +2138,41 @@ public class UtilsTransService {
             hexString.append(hex);
         }
         return hexString.substring(0, 9);
+    }
+    private String obtenerTipoTarjeta(String numeroTarjeta) {
+        if (numeroTarjeta.startsWith("4")) {
+            return "Visa";
+        } else if (numeroTarjeta.startsWith("5")) {
+            return "MasterCard";
+        } else if (numeroTarjeta.startsWith("34") || numeroTarjeta.startsWith("37")) {
+            return "American Express";
+        } else if (numeroTarjeta.startsWith("6")) {
+            return "Discover";
+        } else if (numeroTarjeta.startsWith("35")) {
+            return "JCB";
+        } else if (numeroTarjeta.startsWith("30") || numeroTarjeta.startsWith("36") || numeroTarjeta.startsWith("38") || numeroTarjeta.startsWith("39")) {
+            return "Diners Club";
+        } else {
+            return "Desconocido";
+        }
+    }
+    private boolean validarTarjetaLuhn(String numeroTarjeta) {
+        int suma = 0;
+        boolean alternar = false;
+
+        for (int i = numeroTarjeta.length() - 1; i >= 0; i--) {
+            int n = Character.getNumericValue(numeroTarjeta.charAt(i));
+
+            if (alternar) {
+                n *= 2;
+                if (n > 9) {
+                    n -= 9;
+                }
+            }
+            suma += n;
+            alternar = !alternar;
+        }
+        return (suma % 10 == 0);
     }
 
 }

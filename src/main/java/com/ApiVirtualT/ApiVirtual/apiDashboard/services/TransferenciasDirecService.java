@@ -14,9 +14,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sms.SendSMS;
+import libs.PassSecure;
 
+import javax.print.DocFlavor;
+import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.*;
 
 @Transactional
@@ -477,10 +483,30 @@ public class TransferenciasDirecService {
                     queryProcedure.setParameter("numeroCtaDestino",numeroCtaDestino);
                     Object result = queryProcedure.getSingleResult();
                     int returnValue = Integer.parseInt(result.toString());
+                    double valComision = 0.36;
+                    ResponseEntity<Map<String, Object>> grabar2Response = grabar2(
+                            clieCodEmpresaEnvio,
+                            clienCodOficiEnvio,
+                            clinIdenEnvio,
+                            "0",
+                            "803",
+                            valComision,
+                            1,
+                            nomApellido,
+                            "0",
+                            "0",
+                            numeroCuentaEnvio,
+                            15,
+                            "125"
+                    );
+                if (grabar2Response.getStatusCode() == HttpStatus.OK) {
                     response.put("message", "TRANSFERENCIA INTERBANCARIA REALIZADA CON ÉXITO !!");
                     response.put("numTransferencia", returnValue);
                     response.put("status", "DTROK0005");
                     return new ResponseEntity<>(response, HttpStatus.OK);
+                } else {
+                    return grabar2Response;
+                }
             }
             response.put("message", "MONTO INSUFICIENTE PARA REALIZAR LA TRANSFERENCIA ");
             response.put("error", "ERROR105");
@@ -509,7 +535,15 @@ public class TransferenciasDirecService {
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
             String numeroCuentaEnvio = dto.getCtaEnvio();
-            String numeroCtaDestino = dto.getCtaDestino();
+            String numeroCtaDesti = dto.getCtaDestino();
+            PassSecure decrypt  = new PassSecure();
+            String numeroCtaDestino = decrypt.decryptPassword(numeroCtaDesti);
+            numeroCtaDestino = numeroCtaDestino.replace("\"", "");
+            System.err.println(numeroCtaDestino);
+
+
+
+
             String descripcionTrf = dto.getTxtdettrnsf();
             Float valTransferencia = dto.getValtrans();
             if (numeroCuentaEnvio == null || !numeroCuentaEnvio.matches("\\d{12}")) {
@@ -683,10 +717,31 @@ public class TransferenciasDirecService {
                 queryProcedure.setParameter("numeroCtaDestino",numeroCtaDestino);
                 Object result = queryProcedure.getSingleResult();
                 int returnValue = Integer.parseInt(result.toString());
-                response.put("message", "PAGO DE TARJETA REALIZADO CON ÉXITO !!");
-                response.put("numTransferencia", returnValue);
-                response.put("status", "DTROK0005");
-                return new ResponseEntity<>(response, HttpStatus.OK);
+                double valComision = 0.36;
+                ResponseEntity<Map<String, Object>> grabar2Response = grabar2(
+                        clieCodEmpresaEnvio,
+                        clienCodOficiEnvio,
+                        clinIdenEnvio,
+                        "0",
+                        "803",
+                        valComision,
+                        1,
+                        nomApellido,
+                        "0",
+                        "0",
+                        numeroCuentaEnvio,
+                        16,
+                        "125"
+                );
+                if (grabar2Response.getStatusCode() == HttpStatus.OK) {
+                    response.put("message", "PAGO DE TARJETA REALIZADO CON ÉXITO !!");
+                    response.put("numTransferencia", returnValue);
+                    response.put("status", "DTROK0005");
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                } else {
+                    return grabar2Response;
+                }
+
             }
             response.put("message", "MONTO INSUFICIENTE PARA REALIZAR EL PAGO DE TARJETA ");
             response.put("error", "ERROR105");
@@ -958,7 +1013,11 @@ public class TransferenciasDirecService {
             String numSocio = (String) token.getAttribute("numSocio");
             Map<String, Object> response = new HashMap<>();
             String numeroCuentaEnvio = dto.getCtaEnvio();
-            String numeroCtaDestino = dto.getCtaDestino();
+            String numeroCtaDestin = dto.getCtaDestino();
+            PassSecure decrypt  = new PassSecure();
+            String numeroCtaDestino = decrypt.decryptPassword(numeroCtaDestin);
+            numeroCtaDestino = numeroCtaDestino.replace("\"", "");
+            System.err.println(numeroCtaDestino);
 
             // Validación de datos del token
             if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
@@ -967,7 +1026,6 @@ public class TransferenciasDirecService {
                 response.put("error", "ERROR EN LA AUTENTICACIÓN");
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
-
             // Validación de cuenta origen
             if (numeroCuentaEnvio == null || !numeroCuentaEnvio.matches("\\d{12}")) {
                 response.put("message", "El número de cuenta origen debe tener exactamente 12 dígitos numéricos.");
@@ -1062,6 +1120,345 @@ public class TransferenciasDirecService {
     }
 
 
+    public ResponseEntity<Map<String, Object>> grabar2(String codigoEmpresa, String codigoOficina, String cedula, String codigoOperador,
+                                                       String txtcaja, Double valunida, Integer cantidad, String beneficiario,
+                                                       String codGcomic, String codComic, String txtcuenta, Integer servicio, String numTrans) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Validar servicio
+            if (servicio != 15 && servicio != 16) {
+                response.put("message", "Servicio no válido");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            // Consultar servicio
+            String sqlComic = "SELECT tpser_cod_tpser FROM andtpser WHERE tpser_cod_tpser = :servicio AND tpser_estado_tpser = 1";
+            Query queryComic = entityManager.createNativeQuery(sqlComic);
+            queryComic.setParameter("servicio", servicio);
+            List<?> rsComic = queryComic.getResultList();
+
+            if (rsComic.isEmpty()) {
+                response.put("message", "Servicio no activo");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            // Determinar si es socio
+            String sqlSocioCliente = "SELECT clien_ctr_socio FROM cnxclien WHERE clien_ide_clien = :cedula AND clien_ctr_socio = 1 AND clien_ctr_estad IN (1, 2)";
+            Query querySocioCliente = entityManager.createNativeQuery(sqlSocioCliente);
+            querySocioCliente.setParameter("cedula", cedula);
+            List<?> rsSocioCliente = querySocioCliente.getResultList();
+
+            int codfprod = 15; // COMISIONES SERVICIOS CON IVA si no es socio
+            int iva = 2;
+
+            if (!rsSocioCliente.isEmpty()) {
+                codfprod = 16; // COMISIONES SERVICIOS SIN IVA si es socio
+                iva = 1;
+            }
+
+            // Calcular IVA
+            String sqlIva = "SELECT impts_cod_impts, impts_cod_imsri, impts_por_impts, timpt_cod_tmsri " +
+                    "FROM eceimpts, ecetimpt " +
+                    "WHERE impts_ctr_habil = 1 " +
+                    "AND timpt_cod_timpt = impts_cod_timpt " +
+                    "AND impts_cod_impts = :iva " +
+                    "ORDER BY impts_cod_impts";
+            Query queryIva = entityManager.createNativeQuery(sqlIva);
+            queryIva.setParameter("iva", iva);
+            List<Object[]> rsIva = queryIva.getResultList();
+
+            BigDecimal tarifa = BigDecimal.ZERO;
+            if (!rsIva.isEmpty()) {
+                tarifa = new BigDecimal(rsIva.get(0)[2].toString());
+            }
+            System.err.println(tarifa);
+            float ivaCalculado = (valunida.floatValue() * cantidad.floatValue() * tarifa.floatValue()) / 100;
+            ivaCalculado = redondearMoneda(ivaCalculado);
+            System.err.println(ivaCalculado);
+
+            // Obtener datos del cliente
+            String sqlCli = "SELECT TRIM(clien_ape_clien) || ' ' || TRIM(clien_nom_clien) AS cliente, clien_dir_email AS email " +
+                    "FROM cnxclien WHERE clien_ide_clien = :cedula";
+            Query queryCli = entityManager.createNativeQuery(sqlCli);
+            queryCli.setParameter("cedula", cedula);
+            List<Object[]> rsCli = queryCli.getResultList();
+
+            String email = "";
+            if (!rsCli.isEmpty()) {
+                beneficiario = eliminarAcentos(rsCli.get(0)[0].toString());
+                email = rsCli.get(0)[1].toString();
+            } else {
+                String sqlCliente = "SELECT rclie_raz_apenm, rclie_dir_email FROM ecerclie WHERE rclie_ide_rclie = :cedula";
+                Query queryCliente = entityManager.createNativeQuery(sqlCliente);
+                queryCliente.setParameter("cedula", cedula);
+                List<Object[]> rsCliente = queryCliente.getResultList();
+
+                if (!rsCliente.isEmpty()) {
+                    beneficiario = eliminarAcentos(rsCliente.get(0)[0].toString());
+                    email = rsCliente.get(0)[1].toString();
+                }
+            }
+
+            // Calcular subtotal y total factura
+            float subtotal = valunida.floatValue() * cantidad.floatValue();
+            subtotal = redondearMoneda(subtotal);
+            float totalFactura = subtotal + ivaCalculado;
+            totalFactura = redondearMoneda(totalFactura);
+            // Procesar IVA para servicios específicos
+            if (servicio == 15 || servicio == 16) {
+
+                String cciva = "25040595";
+                String desiva = "";
+
+                String sqlIvaProf = "SELECT profi_val_carac as cciva, profi_des_profi as desiva " +
+                        "FROM cnxprofi WHERE profi_cod_profi = 'dmnsefectc' AND profi_cod_ofici = :oficina";
+                Query queryIvaProf = entityManager.createNativeQuery(sqlIvaProf);
+                queryIvaProf.setParameter("oficina", codigoOficina);
+                List<Object[]> rsIvaProf = queryIvaProf.getResultList();
+
+                if (!rsIvaProf.isEmpty()) {
+                    cciva = rsIvaProf.get(0)[0].toString().trim();
+                    desiva = eliminarAcentos(rsIvaProf.get(0)[1].toString());
+                }
+                System.err.println(ivaCalculado);
+                // Debito y contable
+                if (ivaCalculado > 0) {
+                    String callRegNddct = "CALL andsp_reg_nddct_iva(:codEmpresa, :codOficina, :txtcaja, :desiva, " +
+                            ":txtcuenta, '', :cciva, :iva, '', 0, '', 0, '', 0, '', 0, :iva, 1, :numTrans)";
+                    Query queryRegNddct = entityManager.createNativeQuery(callRegNddct);
+                    queryRegNddct.setParameter("codEmpresa", codigoEmpresa);
+                    queryRegNddct.setParameter("codOficina", codigoOficina);
+                    queryRegNddct.setParameter("txtcaja", txtcaja);
+                    queryRegNddct.setParameter("desiva", desiva);
+                    queryRegNddct.setParameter("txtcuenta", txtcuenta);
+                    queryRegNddct.setParameter("cciva", cciva);
+                    queryRegNddct.setParameter("iva", ivaCalculado);
+                    queryRegNddct.setParameter("numTrans", numTrans);
+                    Integer resultado = (Integer) queryRegNddct.getSingleResult();
+                    System.out.println("Resultado del procedimiento11: " + resultado);
+                }
+            }
+
+            // Generar número de comprobante
+            String callGeneraNroComprobante = "CALL generaNroComprobante2(:codigoEmpresa, :codigoOficina, :tipoComprobante, 0)";
+            Query queryGeneraNroComprobante = entityManager.createNativeQuery(callGeneraNroComprobante);
+            queryGeneraNroComprobante.setParameter("codigoEmpresa", codigoEmpresa);
+            queryGeneraNroComprobante.setParameter("codigoOficina", codigoOficina);
+            queryGeneraNroComprobante.setParameter("tipoComprobante", 1);
+            List<Object[]> resultGeneraNroComprobante = queryGeneraNroComprobante.getResultList();
+
+            String nsecuencia = resultGeneraNroComprobante.get(0)[0].toString();
+            String nsestablecimiento = resultGeneraNroComprobante.get(0)[1].toString();
+            String nspuntoemision = resultGeneraNroComprobante.get(0)[2].toString();
+
+            // Formatear el número de factura (agregar después de obtener nsecuencia, nsestablecimiento, nspuntoemision)
+            if (nsestablecimiento.length() < 3) {
+                nsestablecimiento = String.format("%03d", Integer.parseInt(nsestablecimiento));
+            }
+            if (nspuntoemision.length() < 3) {
+                nspuntoemision = String.format("%03d", Integer.parseInt(nspuntoemision));
+            }
+            if (nsecuencia.length() < 9) {
+                nsecuencia = String.format("%09d", Integer.parseInt(nsecuencia));
+            }
+            String numrfcta = nsestablecimiento + "-" + nspuntoemision + "-" + nsecuencia;
+            // Variables para guía de remisión
+            String estgremis = "";
+            String pemgremis = "";
+            String numgremis = "";
+
+            Libs fecha_n = new Libs(entityManager);
+            String fechaFor = fecha_n.obtenerFecha();
+
+            String rfcta_num_guias = "";
+            String rfcta_fec_emisi =  "TODAY";
+
+            String rfcta_num_compr=null;
+
+
+            // Formatear guía de remisión si existe
+            if (estgremis.length() < 3) {
+                estgremis = String.format("%03d", estgremis.isEmpty() ? 0 : Integer.parseInt(estgremis));
+            }
+            if (pemgremis.length() < 3) {
+                pemgremis = String.format("%03d", pemgremis.isEmpty() ? 0 : Integer.parseInt(pemgremis));
+            }
+            if (numgremis.length() < 9) {
+                numgremis = String.format("%09d", numgremis.isEmpty() ? 0 : Integer.parseInt(numgremis));
+            }
+            if (!numgremis.isEmpty() && Integer.parseInt(numgremis) > 0) {
+                rfcta_num_guias = estgremis + pemgremis + numgremis;
+            }
+            // Descripción de la factura
+            String descrip = "Venta de activos varios";
+            String detalle = "Registro de Factura N.- " + numrfcta + " - Ruc: " + cedula + " - Cliente (" +
+                    eliminarAcentos(beneficiario) + ") - Fec.Emision: " + LocalDate.now() + " " + descrip;
+            // Borrar registros existentes antes de insertar
+            String sqlDeleteDfcta = "DELETE FROM ecedfcta " +
+                    "WHERE dfcta_sec_estab = :estab " +
+                    "AND dfcta_sec_pemis = :pemis " +
+                    "AND dfcta_num_rfcta = :rfcta " +
+                    "AND dfcta_fec_emisi = :fechaEmision";
+            Query queryDeleteDfcta = entityManager.createNativeQuery(sqlDeleteDfcta);
+            queryDeleteDfcta.setParameter("estab", nsestablecimiento);
+            queryDeleteDfcta.setParameter("pemis", nspuntoemision);
+            queryDeleteDfcta.setParameter("rfcta", nsecuencia);
+            queryDeleteDfcta.setParameter("fechaEmision", rfcta_fec_emisi);
+            queryDeleteDfcta.executeUpdate();
+            String sqlDeleteDpfct = "DELETE FROM ecedpfct " +
+                    "WHERE dpfct_sec_estab = :estab " +
+                    "AND dpfct_sec_pemis = :pemis " +
+                    "AND dpfct_num_rfcta = :rfcta " +
+                    "AND dpfct_fec_emisi = :fechaEmision";
+            Query queryDeleteDpfct = entityManager.createNativeQuery(sqlDeleteDpfct);
+            queryDeleteDpfct.setParameter("estab", nsestablecimiento);
+            queryDeleteDpfct.setParameter("pemis", nspuntoemision);
+            queryDeleteDpfct.setParameter("rfcta", nsecuencia);
+            queryDeleteDpfct.setParameter("fechaEmision", rfcta_fec_emisi);
+            queryDeleteDpfct.executeUpdate();
+
+
+            System.err.println(nsecuencia);
+            // Insertar en la tabla ecerfcta
+            String sqlInsertFactura = "INSERT INTO ecerfcta (rfcta_sec_estab, rfcta_sec_pemis, rfcta_num_rfcta, rfcta_fec_emisi, rfcta_ide_rclie, " +
+                    "rfcta_cod_empre, rfcta_cod_ofici, rfcta_cod_efctr, rfcta_cod_usuar, rfcta_usr_proce, rfcta_fho_proce, rfcta_cod_tdocu, rfcta_num_compr, rfcta_clv_acces, rfcta_cod_tcomp) " +
+                    "VALUES (:nsestablecimiento, :nspuntoemision, :nsecuencia, TODAY, :cedula, :codigoEmpresa, :codigoOficina, 1, :codigoOperador, :codigoOperador, CURRENT, 'CDG', :rfcta_num_compr, '', 1)";
+            Query queryInsertFactura = entityManager.createNativeQuery(sqlInsertFactura);
+            queryInsertFactura.setParameter("nsestablecimiento", nsestablecimiento);
+            queryInsertFactura.setParameter("nspuntoemision", nspuntoemision);
+            queryInsertFactura.setParameter("nsecuencia", nsecuencia);
+            queryInsertFactura.setParameter("cedula", cedula);
+            queryInsertFactura.setParameter("codigoEmpresa", codigoEmpresa);
+            queryInsertFactura.setParameter("codigoOficina", codigoOficina);
+            queryInsertFactura.setParameter("codigoOperador", codigoOperador);
+            queryInsertFactura.setParameter("rfcta_num_compr", rfcta_num_compr);
+            queryInsertFactura.executeUpdate();
+
+            //REGISTRO DESCRIPCION FACTURA
+
+            // Obtener la descripción del producto
+            String sqlProducto = "SELECT fprod_cod_fprod, fprod_des_fprod FROM ecefprod WHERE fprod_cod_fprod = :codfprod";
+            Query queryProducto = entityManager.createNativeQuery(sqlProducto);
+            queryProducto.setParameter("codfprod", codfprod);
+            List<Object[]> resultProducto = queryProducto.getResultList();
+            String desfprod = "";
+            if (!resultProducto.isEmpty()) {
+                desfprod = eliminarAcentos((String) resultProducto.get(0)[1]);
+                System.err.println(desfprod);
+            }
+            // Obtener la descripción del servicio
+            String sqlServicio = "SELECT tpser_des_tpser FROM andtpser WHERE tpser_cod_tpser = :servicio";
+            Query queryServicio = entityManager.createNativeQuery(sqlServicio);
+            queryServicio.setParameter("servicio", servicio);
+            List<String> resultServicio = queryServicio.getResultList();
+            String detfprod = "";
+            if (!resultServicio.isEmpty()) {
+                detfprod = eliminarAcentos(resultServicio.get(0)); // Accedemos directamente al String
+                System.err.println(detfprod);
+            }
+
+            String desnuevo = detfprod;
+            Integer numregisdfcta = 1;
+            // Insertar en la tabla ecedfcta
+            String sqlInsertFactura1 = "INSERT INTO ecedfcta (dfcta_sec_estab, dfcta_sec_pemis, dfcta_num_rfcta, dfcta_fec_emisi, dfcta_num_regis, " +
+                    "dfcta_cod_fprod, dfcta_des_fprod, dfcta_num_items, dfcta_val_unida, dfcta_val_descu, dfcta_det_fprod) " +
+                    "VALUES (:rfcta_sec_estab, :rfcta_sec_pemis, :rfcta_num_rfcta, TODAY, :numregisdfcta, " +
+                    ":codfprod, :desnuevo, :numitems, :valunida, 0, :desnuevo)";
+            Query queryInsertFactura1 = entityManager.createNativeQuery(sqlInsertFactura1);
+            queryInsertFactura1.setParameter("rfcta_sec_estab", nsestablecimiento);
+            queryInsertFactura1.setParameter("rfcta_sec_pemis", nspuntoemision);
+            queryInsertFactura1.setParameter("rfcta_num_rfcta", nsecuencia);
+            queryInsertFactura1.setParameter("numregisdfcta", numregisdfcta);
+            queryInsertFactura1.setParameter("codfprod", codfprod);
+            queryInsertFactura1.setParameter("desnuevo", desnuevo);
+            queryInsertFactura1.setParameter("numitems", cantidad);
+            queryInsertFactura1.setParameter("valunida", valunida);
+            queryInsertFactura1.executeUpdate();
+
+            String sqlFormaPago = "SELECT tfpag_des_tfpag FROM ecetfpag WHERE tfpag_cod_tfpag = :codtfpag";
+            Query queryFormaPago = entityManager.createNativeQuery(sqlFormaPago);
+            queryFormaPago.setParameter("codtfpag", 7); // Código de la forma de pago '7'
+            // Como solo se selecciona una columna, el resultado es una lista de String, no de Object[]
+            List<String> resultFormaPago = queryFormaPago.getResultList();
+            String destfpag = "";
+            if (!resultFormaPago.isEmpty()) {
+                destfpag = resultFormaPago.get(0); // Accedemos directamente al String
+            }
+
+            double valtfpag = totalFactura;
+            Integer numregisdpfct = 1;
+            String sqlInsertPago = "INSERT INTO ecedpfct (dpfct_sec_estab, dpfct_sec_pemis, dpfct_num_rfcta, dpfct_fec_emisi, " +
+                    "dpfct_num_regis, dpfct_cod_tfpag, dpfct_des_tfpag, dpfct_val_total, dpfct_abr_tmpfp, dpfct_num_tmpfp) " +
+                    "VALUES (:rfcta_sec_estab, :rfcta_sec_pemis, :rfcta_num_rfcta, TODAY, :numregisdpfct, " +
+                    ":codtfpag, :destfpag, :valtfpag, :abrtmpfp, :numtmpfp)";
+            Query queryInsertPago = entityManager.createNativeQuery(sqlInsertPago);
+            queryInsertPago.setParameter("rfcta_sec_estab", nsestablecimiento);
+            queryInsertPago.setParameter("rfcta_sec_pemis", nspuntoemision);
+            queryInsertPago.setParameter("rfcta_num_rfcta", nsecuencia);
+            queryInsertPago.setParameter("numregisdpfct", numregisdpfct);
+            queryInsertPago.setParameter("codtfpag", 7); // Forma de pago
+            queryInsertPago.setParameter("destfpag", destfpag);
+            queryInsertPago.setParameter("valtfpag", valtfpag);
+            queryInsertPago.setParameter("abrtmpfp", "NINGUNO");
+            queryInsertPago.setParameter("numtmpfp", "");
+            queryInsertPago.executeUpdate();
+
+            Integer rfcta_cod_efctr = 1;
+            Integer modo = 1;
+
+            if (rfcta_cod_efctr.equals(1)){
+                if(modo.equals(1)){
+                    String callGeneraNroComprobante1 = "CALL generaNroComprobante2(:codigoEmpresa, :codigoOficina, :tipoComprobante, :numTrans)";
+                    Query queryGeneraNroComprobante1 = entityManager.createNativeQuery(callGeneraNroComprobante1);
+                    queryGeneraNroComprobante1.setParameter("codigoEmpresa", codigoEmpresa);
+                    queryGeneraNroComprobante1.setParameter("codigoOficina", codigoOficina);
+                    queryGeneraNroComprobante1.setParameter("tipoComprobante", 1);
+                    queryGeneraNroComprobante1.setParameter("numTrans", nsecuencia);
+                    List<Object[]> resultGeneraNroComprobante1 = queryGeneraNroComprobante1.getResultList();
+                    String nsecuencia1 = resultGeneraNroComprobante1.get(0)[0].toString();
+
+                    // Registrar documento web
+                    String callRegistraDocumentoWeb = "CALL registraDocumentoWeb2(:codigoEmpresa, :codigoOficina, :cedula, :nsestablecimiento, :nspuntoemision, :nsecuencia, :fecharegistro , :tipoComprobante, :servicio)";
+                    Query queryRegistraDocumentoWeb = entityManager.createNativeQuery(callRegistraDocumentoWeb);
+                    queryRegistraDocumentoWeb.setParameter("codigoEmpresa", codigoEmpresa);
+                    queryRegistraDocumentoWeb.setParameter("codigoOficina", codigoOficina);
+                    queryRegistraDocumentoWeb.setParameter("cedula", cedula);
+                    queryRegistraDocumentoWeb.setParameter("nsestablecimiento", nsestablecimiento);
+                    queryRegistraDocumentoWeb.setParameter("nspuntoemision", nspuntoemision);
+                    queryRegistraDocumentoWeb.setParameter("nsecuencia", nsecuencia1);
+                    queryRegistraDocumentoWeb.setParameter("tipoComprobante", 1);
+                    queryRegistraDocumentoWeb.setParameter("servicio", servicio);
+                    queryRegistraDocumentoWeb.setParameter("fecharegistro",fechaFor);
+                    String resultado = (String) queryRegistraDocumentoWeb.getSingleResult();
+                    System.out.println("Resultado del procedimiento: " + resultado);
+
+                }
+            }
+            response.put("message", "Factura generada con éxito");
+            response.put("status", "OK");
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR");
+            response.put("error", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private float redondearMoneda(float valor) {
+        return (float) (Math.floor(valor * 100 + 0.5) / 100);
+    }
+    private String eliminarAcentos(String input) {
+        return input.replaceAll("[^\\p{ASCII}]", "");
+    }
+
+
+
+
     public String obtenerSaldoDisponible(String txtcodctadp) throws Exception {
         try {
             // 1. Obtener la fecha actual del sistema llamando a un procedimiento almacenado
@@ -1104,5 +1501,10 @@ public class TransferenciasDirecService {
         int numeroAleatorio = 100000 + random.nextInt(900000); // Asegura 6 dígitos
         return String.valueOf(numeroAleatorio);
     }
+    private String formatMoneda(double monto) {
+        return String.format("%.2f", monto);
+    }
+
+
 
 }

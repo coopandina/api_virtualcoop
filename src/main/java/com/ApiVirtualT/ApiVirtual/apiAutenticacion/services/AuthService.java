@@ -108,7 +108,6 @@ public class AuthService {
             allDataList.add(allData);
             response.put("AllData", allDataList);
         }else{
-
             allData.put("message", "Por favor, no utilice la identificación como si fuera un nombre de usuario.");
             allData.put("status", "AA017");
             allData.put("errors", "Se debe utilizar el nombre de usuario en lugar de la cédula de identificación.");
@@ -116,7 +115,6 @@ public class AuthService {
             response.put("AllData", allDataList);
             status = HttpStatus.BAD_REQUEST;
         }
-
         return new ResponseEntity<>(response, status);
         } catch (Exception e) {
             throw new RuntimeException(e);

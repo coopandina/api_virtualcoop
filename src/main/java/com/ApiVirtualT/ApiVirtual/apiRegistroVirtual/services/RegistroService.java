@@ -395,6 +395,8 @@ public class RegistroService {
             PassSecure pass = new PassSecure();
             String passEncriptada = pass.encryptPassword(password);
 
+
+
             List<?> resultados = resulValidarCampos.getResultList();
             if (!resultados.isEmpty()) {
                 String sqlValidarExiCncliac = "SELECT * FROM cnxcliac " +
