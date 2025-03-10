@@ -413,10 +413,7 @@ public class TransferenciasDirecService {
                 AND ctadp_cod_clien = clien_cod_clien
                         """;
                 String sqlQuery1 = """
-                SELECT id_banco, cta_banco, titular, cedula
-                FROM personas_transferencias  WHERE id_persona = :id_persona
-                AND cta_banco = :cta_banco
-                AND tipo_trf = 'E' AND vigente = 'T'
+                CALL andprc_consultas_transferencias_virtual(:id_persona, :cta_banco, 1 , '' );
                 """;
                 // Consulta cuenta origen
                 Query query = entityManager.createNativeQuery(sqlQuery);
@@ -646,11 +643,8 @@ public class TransferenciasDirecService {
                 AND ctadp_cod_ectad = '1' 
                 AND ctadp_cod_clien = clien_cod_clien
                         """;
-                String sqlQuery1 = """
-                SELECT id_banco, cta_banco, titular, cedula
-                FROM personas_transferencias  WHERE id_persona = :id_persona
-                AND cta_banco = :cta_banco
-                AND tipo_trf = 'E' AND vigente = 'T' AND tipo_prod_banc = 'TC'
+                String sqlQuery1 = """  
+                CALL andprc_consultas_transferencias_virtual(:id_persona, :cta_banco, 2, '' );
                 """;
                 // Consulta cuenta origen
                 Query query = entityManager.createNativeQuery(sqlQuery);
@@ -920,7 +914,7 @@ public class TransferenciasDirecService {
                     "AND ctadp_cod_clien = clien_cod_clien " +
                     "AND clien_ide_clien = cliac_ide_clien";
             String verInfoInter = """
-                    SELECT * FROM personas_transferencias WHERE id_persona = :numSocio AND cta_banco = :ctadp_cod_ctadp
+                    CALL andprc_consultas_transferencias_virtual(:numSocio, '', 3 , :ctadp_cod_ctadp );
                     """;
             // Consulta cuenta origen
             Query query = entityManager.createNativeQuery(sqlQuery);
@@ -1043,7 +1037,7 @@ public class TransferenciasDirecService {
                     "AND ctadp_cod_clien = clien_cod_clien " +
                     "AND clien_ide_clien = cliac_ide_clien";
             String verInfoInter = """
-                    SELECT * FROM personas_transferencias WHERE id_persona = :numSocio AND cta_banco = :ctadp_cod_ctadp
+                    CALL andprc_consultas_transferencias_virtual(:numSocio, '', 4 , :ctadp_cod_ctadp);
                     """;
             // Consulta cuenta origen
             Query query = entityManager.createNativeQuery(sqlQuery);

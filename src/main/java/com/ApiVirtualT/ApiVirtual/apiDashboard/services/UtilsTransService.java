@@ -336,14 +336,7 @@ public class UtilsTransService {
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
 
-            String sqlBeneficiarios =
-                    "SELECT p.titular, p.descripcion, p.email, p.telefono_movil, p.id_persona, p.cta_banco, " +
-                            "       CASE WHEN p.tipo_trf = 'E' THEN (SELECT ifspi_nom_ifspi FROM cnxifspi WHERE ifspi_cod_ifspi = p.id_banco) ELSE NULL END AS entidad_financiera, p.tipo_trf " +
-                            "FROM personas_transferencias p " +
-                            "WHERE p.id_persona = :numSocio " +
-                            "AND p.vigente = 'T' " +
-                            "AND (p.tipo_trf = 'I' OR (p.tipo_trf = 'E' AND p.tipo_prod_banc IN ('AH', 'CC')))";
-
+            String sqlBeneficiarios = "CALL andprc_beneficiarios_transferencias_totales(:numSocio);";
             Query queryBeneficiarios = entityManager.createNativeQuery(sqlBeneficiarios);
             queryBeneficiarios.setParameter("numSocio", numSocio);
             List<Object[]> resultados = queryBeneficiarios.getResultList();
@@ -388,15 +381,10 @@ public class UtilsTransService {
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
 
-            String sql =
-                    "SELECT p.titular, p.descripcion, p.email, p.telefono_movil, p.id_persona, p.cta_banco " +
-                            "FROM personas_transferencias p " +
-                            "WHERE p.id_persona = :numSocio " +
-                            "AND p.tipo_trf = 'I' " +
-                            "AND p.vigente = 'T'";
+            String sql = "CALL andprc_beneficiariosdirectas(:numSocio);";
 
             Query query = entityManager.createNativeQuery(sql);
-            query.setParameter("numSocio", numSocio);
+            query.setParameter("numSocio",numSocio);
             List<Object[]> resultados = query.getResultList();
 
             if (resultados.isEmpty()) {
@@ -404,7 +392,6 @@ public class UtilsTransService {
                 response.put("status", "ERROR002");
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
-
             List<Map<String, Object>> cuentasList = new ArrayList<>();
             for (Object[] row : resultados) {
                 Map<String, Object> cuenta = new HashMap<>();
@@ -452,10 +439,7 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             String sql = """
-                    SELECT titular,descripcion,email,telefono_movil,id_persona,cta_banco
-                    	        FROM personas_transferencias WHERE id_persona= :numSocio
-                                AND cta_banco= :cta_banco
-                    			AND tipo_trf='I'
+                    CALL andprc_val_existencia_cta_interna(:numSocio,:cta_banco );
                     """;
             Query query = entityManager.createNativeQuery(sql);
             query.setParameter("numSocio", numSocio);
@@ -467,15 +451,13 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
             String sql1 = """
-                    UPDATE personas_transferencias SET vigente='F' 
-                    WHERE id_persona= :id_persona
-                    AND cta_banco= :cta_banco
-                    AND tipo_trf='I'
+                        CALL andprc_estados_cta_interna(:numSocio, :cta_banco, 0);
                     """;
             Query queryUpdate = entityManager.createNativeQuery(sql1);
-            queryUpdate.setParameter("id_persona", numSocio);
+            queryUpdate.setParameter("numSocio", numSocio);
             queryUpdate.setParameter("cta_banco", cta_banco);
-            int rowsUpdated = queryUpdate.executeUpdate();
+            int rowsUpdated = (int) queryUpdate.getSingleResult();
+            System.err.println(rowsUpdated);
             if (rowsUpdated > 0) {
                 response.put("message", "Actualización exitosa. Registros modificados: " + rowsUpdated);
                 response.put("status", "SUCCESS");
@@ -493,76 +475,6 @@ public class UtilsTransService {
         }
     }
 
-    public ResponseEntity<Map<String, Object>> buscarPorNombreApellido(HttpServletRequest token, VerMovimientoCta dto ) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
-            String clienIdenti = (String) token.getAttribute("ClienIdenti");
-            String numSocio = (String) token.getAttribute("numSocio");
-
-            String entradaBusqueda = dto.getNombreApellidosBus();
-
-            // Validación para asegurarse de que la entrada no esté vacía ni nula
-            if (entradaBusqueda == null || entradaBusqueda.trim().isEmpty()) {
-                response.put("message", "La entrada de búsqueda no puede estar vacía.");
-                response.put("status", "ERROR001");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-            entradaBusqueda = entradaBusqueda.toUpperCase();
-
-            // Validación para asegurarse de que la entrada solo contiene texto (letras y espacios)
-            if (!entradaBusqueda.matches("[A-Za-z0-9ÁÉÍÓÚáéíóú\\s]+")) {
-                response.put("message", "La entrada de búsqueda solo debe contener texto válido (letras, números y espacios).");
-                response.put("status", "ERROR002");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-            String sqlBeneficiarios =
-                    "SELECT p.titular, p.descripcion, p.email, p.telefono_movil, p.id_persona, p.cta_banco, " +
-                            "       CASE WHEN p.tipo_trf = 'E' THEN (SELECT ifspi_nom_ifspi FROM cnxifspi WHERE ifspi_cod_ifspi = p.id_banco) ELSE NULL END AS entidad_financiera, p.tipo_trf " +
-                            "FROM personas_transferencias p " +
-                            "WHERE p.id_persona = :numSocio " +
-                            "AND p.vigente = 'T' " +
-                            "AND p.tipo_trf = 'I' AND p.tipo_prod_banc IN ('AH', 'CC') " +
-                            "AND CONCAT(p.titular, p.cta_banco) LIKE :entradaBusqueda";
-            Query queryBuscarBeneficiarios = entityManager.createNativeQuery(sqlBeneficiarios);
-            queryBuscarBeneficiarios.setParameter("numSocio", numSocio);
-            queryBuscarBeneficiarios.setParameter("entradaBusqueda", "%" + entradaBusqueda + "%");
-            List<Object[]> resultados = queryBuscarBeneficiarios.getResultList();
-
-            if (resultados.isEmpty()) {
-                response.put("message", "No se encontraron beneficiarios con el nombre especificado.");
-                response.put("status", "ERROR002");
-                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-            }
-
-            List<Map<String, Object>> beneficiariosList = new ArrayList<>();
-            for (Object[] row : resultados) {
-                Map<String, Object> beneficiario = new HashMap<>();
-                beneficiario.put("titular", row[0].toString().trim());
-                beneficiario.put("descripcion", row[1].toString().trim());
-                beneficiario.put("email", row[2].toString().trim());
-                beneficiario.put("telefono_movil", row[3].toString().trim());
-                beneficiario.put("id_persona", row[4].toString().trim());
-                beneficiario.put("cta_banco", row[5].toString().trim());
-                beneficiario.put("entidad_financiera", row[6] != null ? row[6].toString().trim() : "COAC ANDINA");
-                beneficiario.put("tipo_trf", row[7].toString().trim());
-                beneficiariosList.add(beneficiario);
-            }
-
-            // Ordenar la lista de beneficiarios por el nombre del titular (de A a Z)
-            beneficiariosList.sort(Comparator.comparing(b -> b.get("titular").toString()));
-            response.put("beneficiarios", beneficiariosList);
-            response.put("status", "INFOUSEROK");
-            return new ResponseEntity<>(response, HttpStatus.OK);
-
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("message", "Error interno del servidor");
-            errorResponse.put("status", "ERROR001");
-            errorResponse.put("errors", e.getMessage());
-            return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
     public ResponseEntity<Map<String, Object>> validarBeneficiario(HttpServletRequest token, VerMovimientoCta dto) {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -609,8 +521,7 @@ public class UtilsTransService {
             String clienTlfCelul = row[3].toString().trim();
             String deposDesDepos = row[4].toString().trim();
             // Verificar si el beneficiario ya existe
-            String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien " +
-                    "AND tipo_trf = 'I' AND cta_banco = :numeroCuenta AND vigente = 'T'";
+            String sqlCheck = "CALL andprc_val_existencia_cta_interna (:clienCodClien, :numeroCuenta)";
 
             Query queryCheckBeneficiario = entityManager.createNativeQuery(sqlCheck);
             queryCheckBeneficiario.setParameter("clienCodClien", numSocio);
@@ -623,13 +534,12 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             // Actualizar el estado del beneficiario a "vigente"
-            String sqlUpdate = "UPDATE personas_transferencias SET vigente = 'T' WHERE id_persona = :clienCodClien " +
-                    "AND tipo_trf = 'I' AND cta_banco = :numeroCuenta";
+            String sqlUpdate = "CALL andprc_estados_cta_interna(:clienCodClien,:numeroCuenta, 1 )";
 
             Query queryUpdate = entityManager.createNativeQuery(sqlUpdate);
             queryUpdate.setParameter("clienCodClien", numSocio);
             queryUpdate.setParameter("numeroCuenta", numeroCuenta);
-            queryUpdate.executeUpdate();
+            Integer numresul = (int) queryUpdate.getSingleResult();
 
             Map<String, Object> beneficiario = new HashMap<>();
             beneficiario.put("nombre", nombre);
@@ -686,8 +596,7 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.OK);
             }
 
-            String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :idPersona " +
-                    "AND tipo_trf = 'I' AND cta_banco = :ctaBanco AND vigente  IN ('T','F') ";
+            String sqlCheck = "CALL andprc_estado_cta_interna(:idPersona, :ctaBanco, 1 ) ";
             Query queryCheck = entityManager.createNativeQuery(sqlCheck);
             queryCheck.setParameter("idPersona", numSocio);
             queryCheck.setParameter("ctaBanco", numeroCuenta);
@@ -695,17 +604,22 @@ public class UtilsTransService {
 
             if (!resultados.isEmpty()) {
                 // Actualizar beneficiario existente
-                String sqlUpdate = "UPDATE personas_transferencias SET email = :email, vigente = 'T' " +
-                        "WHERE id_persona = :idPersona AND tipo_trf = 'I' AND cta_banco = :ctaBanco";
+                String sqlUpdate = " CALL andprc_update_cta_virtual(:idPersona, :ctaBanco, 1, :email, '' ); ";
                 Query queryUpdate = entityManager.createNativeQuery(sqlUpdate);
                 queryUpdate.setParameter("email", benefiCorreo);
                 queryUpdate.setParameter("idPersona", numSocio);
                 queryUpdate.setParameter("ctaBanco", numeroCuenta);
-                queryUpdate.executeUpdate();
+                Integer resultado1 = (int) queryUpdate.getSingleResult();
+                if(resultado1 >0 ){
+                    response.put("message", "Beneficiario actualizado exitosamente.");
+                    response.put("status", "GBOK001");
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }else{
+                    response.put("message", "No se pudo actualizar el beneficiario.");
+                    response.put("status", "ERROR003");
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
 
-                response.put("message", "Beneficiario actualizado exitosamente.");
-                response.put("status", "GBOK001");
-                return new ResponseEntity<>(response, HttpStatus.OK);
             } else {
                 String sqlBeneficiarios =
                         "SELECT trim(clien_ape_clien) || ' ' || trim(clien_nom_clien) as nombre, " +
@@ -729,44 +643,50 @@ public class UtilsTransService {
                 }
 
                 for (Object[] row : resultados1) {
-                    String titular =  row[0].toString().trim();
-                    String numCuenta =  row[1].toString().trim();
-                    String emailCta =  row[2].toString().trim();
-                    String tlfMovilCta = row[3].toString().trim();
-                    String desDepos =  row[4].toString().trim();
-                    String descripcion = numCuenta + " - " + desDepos;
+                        String titular =  row[0].toString().trim();
+                        String numCuenta =  row[1].toString().trim();
+                        String emailCta =  row[2].toString().trim();
+                        String tlfMovilCta = row[3].toString().trim();
+                        String desDepos =  row[4].toString().trim();
+                        String descripcion = numCuenta + " - " + desDepos;
 
-                    Libs fechaHoraService = new Libs(entityManager);
-                    String fecha = fechaHoraService.obtenerFechaYHora();
-                    System.out.println(fecha);
+                        Libs fechaHoraService = new Libs(entityManager);
+                        String fecha = fechaHoraService.obtenerFechaYHora();
+                        System.out.println(fecha);
 
-                // Insertar nuevo beneficiario
-                String sqlInsert = "INSERT INTO personas_transferencias " +
-                        "(id_persona, id_banco, cta_banco, tipo_prod_banc, titular, descripcion, tipo_trf, fecha_alta, " +
-                        "user_name_oficial, cedula, tipo_identificacion, email, telefono_movil, vigente) VALUES " +
-                        "(:idPersona, :idBanco, :ctaBanco, 'AH', :titular, :descripcion, 'I', :fechaAlta, :userName, " +
-                        ":cedula, :tipoIdentificacion, :email, :telefonoMovil, 'T')";
+                    // Insertar nuevo beneficiario
+                    String sqlInsert = "CALL andprc_inserts_cta_virtual(:idPersona, :ctaBanco, 1, :idBanco, '' , :titular, :descripcion, :fechaAlta, :userName, :cedula, :tipoIdentificacion, :email, :telefonoMovil);";
 
-                Query queryInsert = entityManager.createNativeQuery(sqlInsert);
+                    Query queryInsert = entityManager.createNativeQuery(sqlInsert);
 
-                // Establecer los parámetros con valores adecuados, utilizando valores por defecto cuando sea necesario
-                queryInsert.setParameter("idPersona", numSocio);
-                queryInsert.setParameter("idBanco", "");
-                queryInsert.setParameter("ctaBanco", numeroCuenta);
-                queryInsert.setParameter("titular", titular);
-                queryInsert.setParameter("descripcion", descripcion);
-                queryInsert.setParameter("fechaAlta", fecha);
-                queryInsert.setParameter("userName", clienIdenti);
-                queryInsert.setParameter("cedula", "");
-                queryInsert.setParameter("tipoIdentificacion", "");
-                queryInsert.setParameter("email", benefiCorreo != null ? benefiCorreo : "");
-                queryInsert.setParameter("telefonoMovil", tlfMovilCta);
-                queryInsert.executeUpdate();
-                response.put("message", "Beneficiario registrado exitosamente.");
-                response.put("status", "GBOK002");
+                    // Establecer los parámetros con valores adecuados, utilizando valores por defecto cuando sea necesario
+                    queryInsert.setParameter("idPersona", numSocio);
+                    queryInsert.setParameter("idBanco", "");
+                    queryInsert.setParameter("ctaBanco", numeroCuenta);
+                    queryInsert.setParameter("titular", titular);
+                    queryInsert.setParameter("descripcion", descripcion);
+                    queryInsert.setParameter("fechaAlta", fecha);
+                    queryInsert.setParameter("userName", clienIdenti);
+                    queryInsert.setParameter("cedula", "");
+                    queryInsert.setParameter("tipoIdentificacion", "");
+                    queryInsert.setParameter("email", benefiCorreo != null ? benefiCorreo : "");
+                    queryInsert.setParameter("telefonoMovil", tlfMovilCta);
+                    Integer resultadon = (int) queryInsert.getSingleResult();
+                    if(resultadon > 0){
+                        response.put("message", "Beneficiario directo registrado exitosamente.");
+                        response.put("status", "GBOK002");
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    }else{
+                        response.put("message", "Error al guardar Beneficiario directo.");
+                        response.put("status", "GBOK202");
+                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    }
                 }
-                return new ResponseEntity<>(response, HttpStatus.OK);
+
             }
+            response.put("message", "Error al guardar Beneficiario directo.");
+            response.put("status", "GBOK458");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("message", "Error interno del servidor");
@@ -1160,27 +1080,7 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
             String sqlListBeneficiariosExternos =
-                    "SELECT p.titular, " +
-                            "       p.descripcion, " +
-                            "       p.email, " +
-                            "       p.telefono_movil, " +
-                            "       p.id_persona, " +
-                            "       p.tipo_identificacion, "  +
-                            "       p.cedula, " +
-                            "       p.tipo_prod_banc, " +
-                            "       p.cta_banco, " +
-                            "       CASE " +
-                            "           WHEN p.tipo_trf = 'E' THEN " +
-                            "               (SELECT ifspi_nom_ifspi FROM cnxifspi WHERE ifspi_cod_ifspi = p.id_banco) " +
-                            "           ELSE NULL " +
-                            "       END AS entidad_financiera, " +
-                            "       p.tipo_trf " +
-                            "FROM personas_transferencias p " +
-                            "WHERE p.id_persona = :numSocio "+
-                            "  AND p.vigente = 'T' " +
-                            "  AND p.tipo_trf = 'E' " +
-                            "  AND p.tipo_prod_banc IN ('AH', 'CC')";
-
+                    "CALL andprc_beneficiarios_transferencias_interbancarias(:numSocio, 2);";
             Query queryListBeneExternos = entityManager.createNativeQuery(sqlListBeneficiariosExternos);
             queryListBeneExternos.setParameter("numSocio", numSocio);
             List<Object[]> resulBeneExternos = queryListBeneExternos.getResultList();
@@ -1228,74 +1128,7 @@ public class UtilsTransService {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-    public ResponseEntity<Map<String, Object>> buscarCuentaInterbancaria(HttpServletRequest token, VerMovimientoCta dto ) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
-            String clienIdenti = (String) token.getAttribute("ClienIdenti");
-            String numSocio = (String) token.getAttribute("numSocio");
-            String entradaBusqueda = dto.getNombreApellidosBus();
 
-            if (entradaBusqueda == null || entradaBusqueda.trim().isEmpty()) {
-                response.put("message", "La entrada de búsqueda no puede estar vacía.");
-                response.put("status", "ERROR001");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-            entradaBusqueda = entradaBusqueda.toUpperCase();
-            // Verificar que la entrada contenga solo letras, números y espacios
-            if (!entradaBusqueda.matches("[A-Za-z0-9ÁÉÍÓÚáéíóú\\s]+")) {
-                response.put("message", "La entrada de búsqueda solo debe contener texto válido (letras, números y espacios).");
-                response.put("status", "ERROR002");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-            String sqlBeneficiarios =
-                    "SELECT p.titular, p.descripcion, p.email, p.telefono_movil, p.id_persona, p.cta_banco, " +
-                            "       CASE WHEN p.tipo_trf = 'E' THEN (SELECT ifspi_nom_ifspi FROM cnxifspi WHERE ifspi_cod_ifspi = p.id_banco) ELSE NULL END AS entidad_financiera, p.tipo_trf " +
-                            "FROM personas_transferencias p " +
-                            "WHERE p.id_persona = :numSocio " +
-                            "AND p.vigente = 'T' " +
-                            "AND p.tipo_trf = 'E' " +
-                            "AND p.tipo_prod_banc IN ('AH', 'CC') " +
-                            "AND CONCAT(p.titular, p.cta_banco) LIKE :entradaBusqueda";
-            Query queryBuscarBeneficiarios = entityManager.createNativeQuery(sqlBeneficiarios);
-            queryBuscarBeneficiarios.setParameter("numSocio", numSocio);
-            queryBuscarBeneficiarios.setParameter("entradaBusqueda", "%" + entradaBusqueda + "%");
-            List<Object[]> resultados = queryBuscarBeneficiarios.getResultList();
-
-            if (resultados.isEmpty()) {
-                response.put("message", "No se encontraron beneficiarios con el nombre especificado.");
-                response.put("status", "ERROR002");
-                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-            }
-
-            List<Map<String, Object>> beneficiariosList = new ArrayList<>();
-            for (Object[] row : resultados) {
-                Map<String, Object> beneficiario = new HashMap<>();
-                beneficiario.put("titular", row[0].toString().trim());
-                beneficiario.put("descripcion", row[1].toString().trim());
-                beneficiario.put("email", row[2].toString().trim());
-                beneficiario.put("telefono_movil", row[3].toString().trim());
-                beneficiario.put("id_persona", row[4].toString().trim());
-                beneficiario.put("cta_banco", row[5].toString().trim());
-                beneficiario.put("entidad_financiera", row[6] != null ? row[6].toString().trim() : "COAC ANDINA");
-                beneficiario.put("tipo_trf", row[7].toString().trim());
-                beneficiariosList.add(beneficiario);
-            }
-
-            // Ordenar la lista de beneficiarios por el nombre del titular (de A a Z)
-            beneficiariosList.sort(Comparator.comparing(b -> b.get("titular").toString()));
-            response.put("beneficiarios", beneficiariosList);
-            response.put("status", "INFOUSEROK");
-            return new ResponseEntity<>(response, HttpStatus.OK);
-
-        } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("message", "Error interno del servidor");
-            errorResponse.put("status", "ERROR003");
-            errorResponse.put("errors", e.getMessage());
-            return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
     public ResponseEntity<Map<String, Object>> listarInstFinancieras(HttpServletRequest token) {
         Map<String, Object> response = new HashMap<>();
         Map<String,Object>allData = new HashMap<>();
@@ -1439,26 +1272,7 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
             String sqlListBeneficiariosExternos =
-                    "SELECT p.titular, " +
-                            "       p.descripcion, " +
-                            "       p.email, " +
-                            "       p.telefono_movil, " +
-                            "       p.id_persona, " +
-                            "       p.tipo_identificacion, "  +
-                            "       p.cedula, " +
-                            "       p.tipo_prod_banc, " +
-                            "       p.cta_banco, " +
-                            "       CASE " +
-                            "           WHEN p.tipo_trf = 'E' THEN " +
-                            "               (SELECT ifspi_nom_ifspi FROM cnxifspi WHERE ifspi_cod_ifspi = p.id_banco) " +
-                            "           ELSE NULL " +
-                            "       END AS entidad_financiera, " +
-                            "       p.tipo_trf " +
-                            "FROM personas_transferencias p " +
-                            "WHERE p.id_persona = :numSocio "+
-                            "  AND p.vigente = 'T' " +
-                            "  AND p.tipo_trf = 'E' " +
-                            "  AND p.tipo_prod_banc IN ('TC')";
+                    "CALL andprc_beneficiarios_transferencias_interbancarias(:numSocio, 3)";
 
             Query queryListBeneExternos = entityManager.createNativeQuery(sqlListBeneficiariosExternos);
             queryListBeneExternos.setParameter("numSocio", numSocio);
@@ -1598,44 +1412,55 @@ public class UtilsTransService {
             System.out.println(fecha);
 
             // Verificar si ya existe un beneficiario
-            String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E'";
+            String sqlCheck = "CALL andprc_estado_cta_interna(:clienCodClien, :ctaBanco, 2 );   ";
             Query queryCheck = entityManager.createNativeQuery(sqlCheck);
             queryCheck.setParameter("clienCodClien", numSocio);
             queryCheck.setParameter("ctaBanco", numTarjeta);
-
             List<Object> resultadosCheck = queryCheck.getResultList();
             if (!resultadosCheck.isEmpty()) {
-                String sqlUpdate = "UPDATE personas_transferencias SET email = :email, telefono_movil = :movil, vigente = 'T' WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' ";
+                String sqlUpdate = "CALL  andprc_update_cta_virtual(:clienCodClien, :ctaBanco, 2, :email, :movil );";
                 Query queryUpdate = entityManager.createNativeQuery(sqlUpdate);
                 queryUpdate.setParameter("email", benefiCorreo);
                 queryUpdate.setParameter("movil", movilInter);
                 queryUpdate.setParameter("clienCodClien", numSocio);
                 queryUpdate.setParameter("ctaBanco", numTarjeta);
-                queryUpdate.executeUpdate();
-                response.put("message", "Beneficiario actualizado exitosamente.");
-                response.put("status", "GBOK001");
-                return new ResponseEntity<>(response, HttpStatus.OK);
+                Integer respuestanum = (int) queryUpdate.getSingleResult();
+                if(respuestanum >0){
+                    response.put("message", "Tarjeta actualizada exitosamente.");
+                    response.put("status", "GBOK001");
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }else {
+                    response.put("message", "Error al actualizar el beneficiario.");
+                    response.put("status", "GBOK001");
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
+            }else{
+                // Insertar un nuevo beneficiario
+                String sqlInsert = "CALL andprc_inserts_cta_virtual(:clienCodClien,:ctaBanco, 4,:insBeneInter,:tipoCuenta, :nomTitular, :benefiDetalle, :fechaAlta, :userName, :ideBeneficiario, :tipIden, :email, :movil  );" ;
+                Query queryInsertBeneficiario = entityManager.createNativeQuery(sqlInsert);
+                queryInsertBeneficiario.setParameter("tipoCuenta",tipoCuenta );
+                queryInsertBeneficiario.setParameter("clienCodClien", numSocio);
+                queryInsertBeneficiario.setParameter("insBeneInter", codInstitucion);
+                queryInsertBeneficiario.setParameter("ctaBanco", numTarjeta);
+                queryInsertBeneficiario.setParameter("nomTitular", nombreTitular);
+                queryInsertBeneficiario.setParameter("benefiDetalle", numTarjeta + " - " + tipoTarjeta);
+                queryInsertBeneficiario.setParameter("fechaAlta", fecha);
+                queryInsertBeneficiario.setParameter("userName", clienIdenti);
+                queryInsertBeneficiario.setParameter("ideBeneficiario", numIdentificacion);
+                queryInsertBeneficiario.setParameter("tipIden", tipoIdentificacion);
+                queryInsertBeneficiario.setParameter("email", benefiCorreo);
+                queryInsertBeneficiario.setParameter("movil", movilInter);
+                Integer resultint = (int) queryInsertBeneficiario.getSingleResult();
+                if(resultint > 0){
+                    response.put("message", "Tarjeta registrada exitosamente.");
+                    response.put("status", "GBOK002");
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }else{
+                    response.put("message", "ERROR AL registrar su Tarjeta.");
+                    response.put("status", "GBOK002");
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
             }
-            // Insertar un nuevo beneficiario
-            String sqlInsert = "INSERT INTO personas_transferencias (id_persona, id_banco, cta_banco, tipo_prod_banc, titular, descripcion, tipo_trf, fecha_alta, user_name_oficial, cedula, tipo_identificacion, email, telefono_movil, vigente) " +
-                    "VALUES (:clienCodClien, :insBeneInter, :ctaBanco, :tipoCuenta , :nomTitular, :benefiDetalle, 'E', :fechaAlta, :userName, :ideBeneficiario, :tipIden, :email, :movil, 'T')";
-            Query queryInsertBeneficiario = entityManager.createNativeQuery(sqlInsert);
-            queryInsertBeneficiario.setParameter("tipoCuenta",tipoCuenta );
-            queryInsertBeneficiario.setParameter("clienCodClien", numSocio);
-            queryInsertBeneficiario.setParameter("insBeneInter", codInstitucion);
-            queryInsertBeneficiario.setParameter("ctaBanco", numTarjeta);
-            queryInsertBeneficiario.setParameter("nomTitular", nombreTitular);
-            queryInsertBeneficiario.setParameter("benefiDetalle", numTarjeta + " - " + tipoTarjeta);
-            queryInsertBeneficiario.setParameter("fechaAlta", fecha);
-            queryInsertBeneficiario.setParameter("userName", clienIdenti);
-            queryInsertBeneficiario.setParameter("ideBeneficiario", numIdentificacion);
-            queryInsertBeneficiario.setParameter("tipIden", tipoIdentificacion);
-            queryInsertBeneficiario.setParameter("email", benefiCorreo);
-            queryInsertBeneficiario.setParameter("movil", movilInter);
-            queryInsertBeneficiario.executeUpdate();
-            response.put("message", "Tarjeta registrada exitosamente.");
-            response.put("status", "GBOK002");
-            return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("message", "Error interno del servidor");
@@ -1671,11 +1496,7 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             String sql = """
-                    SELECT titular,descripcion,email,telefono_movil,id_persona,cta_banco
-                    	        FROM personas_transferencias WHERE id_persona= :numSocio
-                                AND cta_banco= :cta_banco
-                    			AND tipo_trf='E'
-                    			AND tipo_prod_banc = 'TC'
+                        CALL andprc_estado_cta_interna(:numSocio, :cta_banco, 3);
                     """;
             Query query = entityManager.createNativeQuery(sql);
             query.setParameter("numSocio", numSocio);
@@ -1687,18 +1508,14 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
             String sql1 = """
-                    UPDATE personas_transferencias SET vigente='F'
-                    WHERE id_persona= :id_persona
-                    AND cta_banco= :cta_banco
-                    AND tipo_trf='E'
-                    AND tipo_prod_banc = 'TC'
+                        CALL andprc_update_cta_virtual(:id_persona, :cta_banco, 3, '', '');
                     """;
             Query queryUpdate = entityManager.createNativeQuery(sql1);
             queryUpdate.setParameter("id_persona", numSocio);
             queryUpdate.setParameter("cta_banco", cta_banco);
-            int rowsUpdated = queryUpdate.executeUpdate();
+            int rowsUpdated = (int) queryUpdate.getSingleResult();
             if (rowsUpdated > 0) {
-                response.put("message", "Actualización exitosa. Registros modificados: " + rowsUpdated);
+                response.put("message", "Tarjeta eliminada con exito. Registros modificados: " + rowsUpdated);
                 response.put("status", "SUCCESS");
                 return new ResponseEntity<>(response, HttpStatus.OK);
             } else {
@@ -1713,11 +1530,6 @@ public class UtilsTransService {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
-
-
-
-
 
     public ResponseEntity<Map<String, Object>> guardarBeneInterbancario(HttpServletRequest request, InterbancariasDTO dto) {
         Map<String, Object> response = new HashMap<>();
@@ -1797,7 +1609,7 @@ public class UtilsTransService {
             System.out.println(fecha);
 
             // Verificar si ya existe un beneficiario
-            String sqlCheck = "SELECT * FROM personas_transferencias WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E'";
+            String sqlCheck = "CALL andprc_estado_cta_interna(:clienCodClien, :ctaBanco, 4 )";
             Query queryCheck = entityManager.createNativeQuery(sqlCheck);
             queryCheck.setParameter("clienCodClien", numSocio);
             queryCheck.setParameter("ctaBanco", numCuenta);
@@ -1814,37 +1626,50 @@ public class UtilsTransService {
 //            queryCheckInactive.setParameter("ctaBanco", numCuenta);
             List<Object> resultadosCheck = queryCheck.getResultList();
             if (!resultadosCheck.isEmpty()) {
-                String sqlUpdate = "UPDATE personas_transferencias SET email = :email, telefono_movil = :movil, vigente = 'T' WHERE id_persona = :clienCodClien AND cta_banco = :ctaBanco AND tipo_trf = 'E' ";
+                String sqlUpdate = "CALL andprc_update_cta_virtual(:clienCodClien, :ctaBanco, 4, :email, :movil );";
                 Query queryUpdate = entityManager.createNativeQuery(sqlUpdate);
                 queryUpdate.setParameter("email", benefiCorreo);
                 queryUpdate.setParameter("movil", movilInter);
                 queryUpdate.setParameter("clienCodClien", numSocio);
                 queryUpdate.setParameter("ctaBanco", numCuenta);
-                queryUpdate.executeUpdate();
-                response.put("message", "Beneficiario actualizado exitosamente.");
-                response.put("status", "GBOK001");
-                return new ResponseEntity<>(response, HttpStatus.OK);
+                Integer resultados = (int) queryUpdate.getSingleResult();
+
+                if(resultados > 0){
+                    response.put("message", "Beneficiario interbancario actualizado exitosamente.");
+                    response.put("status", "GBOK001");
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }else{
+                    response.put("message", "Error al actualizar beneficiario interbancario.");
+                    response.put("status", "GBOK0499");
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
+            }else{
+                // Insertar un nuevo beneficiario
+                String sqlInsert = "CALL andprc_inserts_cta_virtual(:clienCodClien,:ctaBanco, 4,:insBeneInter,:tipoCuenta, :nomTitular, :benefiDetalle, :fechaAlta, :userName, :ideBeneficiario, :tipIden, :email, :movil );";
+                Query queryInsertBeneficiario = entityManager.createNativeQuery(sqlInsert);
+                queryInsertBeneficiario.setParameter("tipoCuenta", tipoCuenta);
+                queryInsertBeneficiario.setParameter("clienCodClien", numSocio);
+                queryInsertBeneficiario.setParameter("insBeneInter", codInstitucion);
+                queryInsertBeneficiario.setParameter("ctaBanco", numCuenta);
+                queryInsertBeneficiario.setParameter("nomTitular", nombreTitular);
+                queryInsertBeneficiario.setParameter("benefiDetalle", numCuenta + " - " + nombreTitular);
+                queryInsertBeneficiario.setParameter("fechaAlta", fecha);
+                queryInsertBeneficiario.setParameter("userName", clienIdenti);
+                queryInsertBeneficiario.setParameter("ideBeneficiario", numIdentificacion);
+                queryInsertBeneficiario.setParameter("tipIden", tipoIdentificacion);
+                queryInsertBeneficiario.setParameter("email", benefiCorreo);
+                queryInsertBeneficiario.setParameter("movil", movilInter);
+                Integer resultnum = (int) queryInsertBeneficiario.getSingleResult();
+                if(resultnum > 0){
+                    response.put("message", "Beneficiario interbancario registrado exitosamente.");
+                    response.put("status", "GBOK002");
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }else{
+                    response.put("message", "Beneficiario interbancario registrado exitosamente.");
+                    response.put("status", "GBOK155");
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
             }
-            // Insertar un nuevo beneficiario
-            String sqlInsert = "INSERT INTO personas_transferencias (id_persona, id_banco, cta_banco, tipo_prod_banc, titular, descripcion, tipo_trf, fecha_alta, user_name_oficial, cedula, tipo_identificacion, email, telefono_movil, vigente) " +
-                    "VALUES (:clienCodClien, :insBeneInter, :ctaBanco, :tipoCuenta , :nomTitular, :benefiDetalle, 'E', :fechaAlta, :userName, :ideBeneficiario, :tipIden, :email, :movil, 'T')";
-            Query queryInsertBeneficiario = entityManager.createNativeQuery(sqlInsert);
-            queryInsertBeneficiario.setParameter("tipoCuenta", tipoCuenta);
-            queryInsertBeneficiario.setParameter("clienCodClien", numSocio);
-            queryInsertBeneficiario.setParameter("insBeneInter", codInstitucion);
-            queryInsertBeneficiario.setParameter("ctaBanco", numCuenta);
-            queryInsertBeneficiario.setParameter("nomTitular", nombreTitular);
-            queryInsertBeneficiario.setParameter("benefiDetalle", numCuenta + " - " + nombreTitular);
-            queryInsertBeneficiario.setParameter("fechaAlta", fecha);
-            queryInsertBeneficiario.setParameter("userName", clienIdenti);
-            queryInsertBeneficiario.setParameter("ideBeneficiario", numIdentificacion);
-            queryInsertBeneficiario.setParameter("tipIden", tipoIdentificacion);
-            queryInsertBeneficiario.setParameter("email", benefiCorreo);
-            queryInsertBeneficiario.setParameter("movil", movilInter);
-            queryInsertBeneficiario.executeUpdate();
-            response.put("message", "Beneficiario registrado exitosamente.");
-            response.put("status", "GBOK002");
-            return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("message", "Error interno del servidor");
@@ -1866,7 +1691,6 @@ public class UtilsTransService {
                 response.put("errors", "ERROR EN LA AUTENTICACIÓN");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-
             if (nombreEntidadBusqueda == null || nombreEntidadBusqueda.isEmpty() || nombreEntidadBusqueda.length() > 250 || !nombreEntidadBusqueda.matches("^[a-zA-Z\\s]+$")) {
                 response.put("message", "El nombre de la institucion financiera solo puede contener letras y espacios, no puede exceder los 250 caracteres, y no puede estar vacío o nulo.");
                 response.put("status", "ERROR002");

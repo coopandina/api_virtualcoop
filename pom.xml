@@ -12,7 +12,7 @@
 	<artifactId>ApiVirtual</artifactId>
 	<version>0.0.1</version>
 	<name>ApiVirtual</name>
-<!--	<packaging>war</packaging>-->
+	<packaging>war</packaging>
 	<description>Proyecto ApiVirtualCoop</description>
 	<url/>
 	<licenses>
@@ -133,11 +133,11 @@
 			<version>5.1.0</version>
 		</dependency>
 
-<!--		<dependency>-->
-<!--			<groupId>org.springframework.boot</groupId>-->
-<!--			<artifactId>spring-boot-starter-tomcat</artifactId>-->
-<!--			<scope>provided</scope>-->
-<!--		</dependency>-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-tomcat</artifactId>
+			<scope>provided</scope>
+		</dependency>
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>

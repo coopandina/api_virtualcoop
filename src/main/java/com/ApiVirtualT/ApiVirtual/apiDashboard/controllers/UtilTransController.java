@@ -66,11 +66,11 @@ public class UtilTransController {
         return utilsTransService.obtenerMovimientos(dto, token);
 
     }
-    @PostMapping("/buscarBeneficiario")
-    public ResponseEntity<Map<String, Object>> buscarPorNombreApellido(@RequestBody VerMovimientoCta dto, HttpServletRequest token) {
-        return utilsTransService.buscarPorNombreApellido(token, dto);
-
-    }
+//    @PostMapping("/buscarBeneficiario")
+//    public ResponseEntity<Map<String, Object>> buscarPorNombreApellido(@RequestBody VerMovimientoCta dto, HttpServletRequest token) {
+//        return utilsTransService.buscarPorNombreApellido(token, dto);
+//
+//    }
     @PostMapping("/validarBenefDirecto")
     public ResponseEntity<Map<String, Object>> validarBeneDirecto(@RequestBody VerMovimientoCta dto, HttpServletRequest token) {
         return utilsTransService.validarBeneficiario(token, dto);
@@ -99,10 +99,6 @@ public class UtilTransController {
     @PostMapping("/lisBeneficiInterb")
     public ResponseEntity<Map<String,Object>>lisBeneficiariosInter(HttpServletRequest token){
         return utilsTransService.lisBeneInterbanc(token);
-    }
-    @PostMapping("/buscarCuentasInterba")
-    public ResponseEntity<Map<String,Object>>buscarCtaInterbancaria(HttpServletRequest token, @RequestBody VerMovimientoCta dto){
-        return utilsTransService.buscarCuentaInterbancaria(token, dto);
     }
     @PostMapping("/listarInsFinancieras")
     public ResponseEntity<Map<String,Object>>listarInstituciones(HttpServletRequest token){
