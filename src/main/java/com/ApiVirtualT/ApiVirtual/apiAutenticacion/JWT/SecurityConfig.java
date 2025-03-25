@@ -38,7 +38,10 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:9090",
                 "http://172.1.0.204:9090",
-                "http://localhost:4173"
+                "http://localhost:4173",
+                "http://localhost:8989", "http://pruebasvirtual.coopandina.fin.ec:8989",
+                "http://betavirtualcoop.coopandina.fin.ec:8080",
+                "http://172.1.0.136:8989/"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowCredentials(true);

@@ -9,6 +9,7 @@ import com.ApiVirtualT.ApiVirtual.libs.Libs;
 import envioCorreo.sendEmail;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.PersistenceException;
 import jakarta.persistence.Query;
 import jakarta.servlet.http.HttpServletRequest;
 import libs.PassSecure;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import sms.SendSMS;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -41,7 +43,6 @@ public class CambioPassService {
         Map<String, Object> allData = new HashMap<>();
         Map<String, Object> response = new HashMap<>();
         List<Map<String, Object>> allDataList = new ArrayList<>();
-        HttpStatus status = HttpStatus.OK;
 
         String mensajeValBlancos = validarCamposBlanco(credencialPassUser);
 
@@ -87,13 +88,14 @@ public class CambioPassService {
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
-
+        HttpStatus status = HttpStatus.BAD_REQUEST;
         Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialPassUser.getCliacUsuVirtu(), credencialPassUser.getClienIdeClien(), credencialPassUser.getClienCodClien(), credencialPassUser.getFechaNacimiento(), credencialPassUser.getTipoIdentificacion());
         if (Boolean.TRUE.equals(verificarExistenciaUsario.get("success"))) {
             allData.put("message", "Pasa a ingresar codigo temporal 4 digitos.");
             allData.put("status", "DU00");
             String token = (String) verificarExistenciaUsario.get("token");
             allData.put("token", token);
+            status = HttpStatus.OK;
         }else{
             allData.put("message", verificarExistenciaUsario.get("message"));
             allData.put("status", verificarExistenciaUsario.get("status"));
@@ -111,7 +113,7 @@ public class CambioPassService {
 
         Map<String, Object> response = new HashMap<>();
 
-        List<Object[]> verificarExistenciaUsario = new ArrayList<>();
+        List<Object[]> verificarExistenciaUsuario = new ArrayList<>();
         try {
             String sqlVerificarUserDesbloq =
                     "SELECT cliac_ide_clien, cliac_usu_virtu, clien_cod_tiden, clien_cod_clien, clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_www_pswrd, clien_fec_nacim " +
@@ -128,11 +130,13 @@ public class CambioPassService {
             queryVerfUsuario.setParameter("cliac_ide_clien", identificacionUser);
             queryVerfUsuario.setParameter("clien_cod_tiden", tipoIdentificacion);
 
+            System.err.println(usuario + " " + " " + codigoUsuario + " " + identificacionUser + " " + tipoIdentificacion);
 
-            verificarExistenciaUsario = queryVerfUsuario.getResultList();
+            verificarExistenciaUsuario = queryVerfUsuario.getResultList();
 
-            if (!verificarExistenciaUsario.isEmpty()) {
-                for (Object[] row0 : verificarExistenciaUsario) {
+            if (!verificarExistenciaUsuario.isEmpty()) {
+                boolean usuarioCoincide = false; // Variable para rastrear si se encontró una coincidencia
+                for (Object[] row0 : verificarExistenciaUsuario) {
                     String cliacIdeClien = row0[0].toString().trim();
                     String cliacUsuVirtual = row0[1].toString().trim();
                     String clieCodTien = row0[2].toString().trim();
@@ -148,16 +152,15 @@ public class CambioPassService {
                     String fechaNaciFormateada = LocalDate.parse(fechaNaciClien, formatoEntrada).format(formatoSalida);
                     System.out.println("Fecha de nacimiento formateada: " + fechaNaciFormateada);
 
-                    if(cliacUsuVirtual.equals(usuario) && cliacIdeClien.equals(identificacionUser) && clieCodTien.equals(tipoIdentificacion)
-                            && clienCodigoClien.equals(codigoUsuario) && fechaNaciFormateada.equals(fechaNacUsuario)){
+                    if (cliacUsuVirtual.equals(usuario) && cliacIdeClien.equals(identificacionUser) && clieCodTien.equals(tipoIdentificacion)
+                            && clienCodigoClien.equals(codigoUsuario) && fechaNaciFormateada.equals(fechaNacUsuario)) {
                         System.out.println("Los usuarios si coinciden");
                         String CodigoDesbloqueo = codigoAleatorioTemp();
                         Libs fechaHoraService = new Libs(entityManager);
                         String FechaDesbloqueoUser = fechaHoraService.obtenerFechaYHora();
 
-
                         SendSMS smsDesbloqueo = new SendSMS();
-                        smsDesbloqueo.sendSecurityCodeSMS(clieNumCelular,"1150",CodigoDesbloqueo,"Actualizar su Clave",FechaDesbloqueoUser);
+                        smsDesbloqueo.sendSecurityCodeSMS(clieNumCelular, "1150", CodigoDesbloqueo, "Actualizar su Clave", FechaDesbloqueoUser);
                         sendEmail enviarCorreo = new sendEmail();
                         enviarCorreo.sendEmailTokenTemp(clienApellidoClien, clieNomClien, FechaDesbloqueoUser, clieDirEmailCli, CodigoDesbloqueo);
                         String sqlUpdateEstado = "UPDATE vircodaccess SET codaccess_estado = '0' WHERE codaccess_cedula = :codaccess_cedula AND codaccess_estado = '1'";
@@ -186,6 +189,7 @@ public class CambioPassService {
                         return response;
                     }
                 }
+                // Si no se encontró coincidencia en el bucle
                 response.put("success", false);
                 response.put("message", "Error: los datos ingresados no coinciden con la base de datos.");
                 response.put("status", "CC02");
@@ -196,7 +200,14 @@ public class CambioPassService {
                 response.put("status", "CC01");
                 response.put("errors", "No se encontró información del usuario.");
             }
-
+        } catch (PersistenceException e) {
+            response.put("message", "Error de base de datos al verificar el usuario.");
+            response.put("error", e.getMessage());
+            response.put("status", "DB_ERROR");
+        } catch (NullPointerException e) {
+            response.put("message", "Error: datos incompletos o nulos.");
+            response.put("error", e.getMessage());
+            response.put("status", "NULL_ERROR");
         } catch (Exception e) {
             response.put("message", "Ocurrió un error inesperado al verificar el usuario.");
             response.put("error", e.getMessage());
@@ -212,7 +223,7 @@ public class CambioPassService {
             Map<String, Object> allData = new HashMap<>();
             Map<String, Object> response = new HashMap<>();
             List<Map<String, Object>> allDataList = new ArrayList<>();
-            HttpStatus status = HttpStatus.OK;
+            HttpStatus status = HttpStatus.BAD_REQUEST;
 
             if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
                 allData.put("message", "Datos del token incompletos");
@@ -335,7 +346,28 @@ public class CambioPassService {
                                     String IpIngreso = localIP();
                                     sendEmail emailBloq = new sendEmail();
                                     emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora, clienEmail, IpIngreso);
-                                intentosRealizadoTokenFallos = 0;
+
+                                    String accesoDipTermi = localIP();
+                                    String accesoMacTermi = dirrecionMac();
+                                    Libs fechaHoraService2 = new Libs(entityManager);
+                                    String accesoFecAcces = fechaHoraService2.obtenerFechaYHora();
+                                    String accesoCodAcces = generarNumberoSerial(1000000, 99999999);
+                                    String accesoDesUsuar = cliacUsuVirtu;
+                                    String accesoCodTacce = "2";
+                                    System.out.println(accesoCodAcces);
+                                    String sqlInsertAccesos =
+                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                    resultInsertAcceso.setParameter("acceso_pas_usuar", "");
+                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                    resultInsertAcceso.executeUpdate();
+
+                                    intentosRealizadoTokenFallos = 0;
                                 response.put("success", false);
                                 response.put("message", "Usuario bloqueado por exceder límite de intentos");
                                 response.put("status", "DU06");
@@ -348,7 +380,7 @@ public class CambioPassService {
                         }
                     } else {
                         response.put("success", false);
-                        response.put("message", "Token incorrecto. Intentos restantes: " + (4 - intentosRealizadoTokenFallos));
+                        response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
                         response.put("status", "DU08");
                     }
                 }
@@ -530,7 +562,6 @@ public class CambioPassService {
             allDataList.add(allData);
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-
         }
         // Validar longitud de la nueva contraseña
         if (cambioContrasena.getPassNew().length() <= 8) {
@@ -548,7 +579,6 @@ public class CambioPassService {
             allDataList.add(allData);
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-
         }
         if (cambioContrasena.getConfPassNew().isEmpty()) {
             allData.put("message", "No puede dejar espacios en blanco en la confirmacion de la contraseña.");
@@ -634,6 +664,49 @@ public class CambioPassService {
             resulValDatosCamPass.setParameter("codaccess_codigo_temporal", claveTempActual);
             List<Object[]> result = resulValDatosCamPass.getResultList();
 
+            if (result.isEmpty()) {
+                allData.put("message", "No se encontró ningún registro válido para el cambio de contraseña.");
+                allData.put("status", "CC01");
+                allData.put("errors", "Error al procesar la información para cambio de contraseña");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            String valPassAnterior = "SELECT FIRST 3 virwwwpswdcambio_newpass FROM virwwwpswdcambio " +
+                    "WHERE virwwwpswdcambio_cedula = :cedula " +
+                    "ORDER BY codaccess_fecha DESC";
+
+            Query queryPassAnterior = entityManager.createNativeQuery(valPassAnterior);
+            queryPassAnterior.setParameter("cedula", clienIdenti);
+            List<String> resultPassAnterior = queryPassAnterior.getResultList();
+
+            if (!resultPassAnterior.isEmpty()) {
+                PassSecure passSecure = new PassSecure();
+
+                for (String passAnterior : resultPassAnterior) {
+                    // Limpieza de datos
+                    passAnterior = passAnterior.trim();
+                    if (passAnterior.startsWith("\"") && passAnterior.endsWith("\"")) {
+                        passAnterior = passAnterior.substring(1, passAnterior.length() - 1).trim();
+                    }
+
+                    String passDec = passSecure.decryptPassword(passAnterior);
+                    passDec = passDec.trim();
+                    if (passDec.startsWith("\"") && passDec.endsWith("\"")) {
+                        passDec = passDec.substring(1, passDec.length() - 1).trim();
+                    }
+
+                    if (passDec.equals(cambioContrasena.getPassNew())) {
+                        allData.put("message", "La nueva contraseña no puede ser igual a las contraseñas anteriores, ingrese una nueva.");
+                        allData.put("status", "CC675");
+                        allData.put("errors", "Error al procesar la información para cambio de contraseña");
+                        allDataList.add(allData);
+                        response.put("AllData", allDataList);
+                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    }
+                }
+            }
             for (Object[] row3 : result) {
                 String clienCedula = row3[0].toString().trim();
                 String clienUsuario = row3[1].toString().trim();
@@ -747,7 +820,7 @@ public class CambioPassService {
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
             }
-            return new ResponseEntity<>(response, HttpStatus.OK);
+            return new ResponseEntity<>(response, HttpStatus.OK); // aqui esta mal
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             Map<String, Object> errorData = new HashMap<>();
@@ -772,7 +845,7 @@ public class CambioPassService {
             Map<String, Object> allData = new HashMap<>();
             Map<String, Object> response = new HashMap<>();
             List<Map<String, Object>> allDataList = new ArrayList<>();
-            HttpStatus status = HttpStatus.OK;
+            HttpStatus status = HttpStatus.BAD_REQUEST;
             if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
                 allData.put("message", "Datos del token incompletos");
                 allData.put("status", "AA022");
@@ -871,6 +944,28 @@ public class CambioPassService {
                                     String IpIngreso = localIP();
                                     sendEmail emailBloq = new sendEmail();
                                     emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora, clienEmail, IpIngreso);
+
+                                    String accesoDipTermi = localIP();
+                                    String accesoMacTermi = dirrecionMac();
+                                    Libs fechaHoraService2 = new Libs(entityManager);
+                                    String accesoFecAcces = fechaHoraService2.obtenerFechaYHora();
+                                    String accesoCodAcces = generarNumberoSerial(1000000, 99999999);
+                                    String accesoDesUsuar = cliacUsuVirtu;
+                                    String accesoCodTacce = "2";
+                                    System.out.println(accesoCodAcces);
+                                    String sqlInsertAccesos =
+                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                    resultInsertAcceso.setParameter("acceso_pas_usuar", "");
+                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                    resultInsertAcceso.executeUpdate();
+
+
                                     intentosRealizadoTokenFallos = 0;
                                     response.put("success", false);
                                     response.put("message", "Usuario bloqueado por exceder límite de intentos");
@@ -884,7 +979,7 @@ public class CambioPassService {
                         }
                     } else {
                         response.put("success", false);
-                        response.put("message", "Token incorrecto. Intentos restantes: " + (4 - intentosRealizadoTokenFallos));
+                        response.put("message", "Codigo temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
                         response.put("status", "AA023");
                     }
                 }
@@ -959,7 +1054,6 @@ public class CambioPassService {
         if (verificador != Character.getNumericValue(cedula.charAt(9))) {
             return "Cédula inválida: dígito verificador incorrecto";
         }
-
         return null;
     }
     public String codigoAleatorio6Temp() {
@@ -982,6 +1076,30 @@ public class CambioPassService {
             e.printStackTrace();
             return "No disponible";
         }
+    }
+    public static String dirrecionMac() {
+        try {
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            NetworkInterface network = NetworkInterface.getByInetAddress(inetAddress);
+            byte[] mac = network.getHardwareAddress();
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < mac.length; i++) {
+                sb.append(String.format("%02X:", mac[i]));
+            }
+            if (sb.length() > 0) {
+                sb.deleteCharAt(sb.length() - 1);
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "No disponible";
+        }
+    }
+    public static String generarNumberoSerial(int min, int max) {
+        Random random = new Random();
+        int randomNumber = random.nextInt((max - min) + 1) + min;
+        return String.valueOf(randomNumber);
     }
 
 

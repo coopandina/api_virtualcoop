@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import sms.SendSMS;
 import com.ApiVirtualT.ApiVirtual.libs.Libs;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -115,7 +116,7 @@ public class DesbloqueoService {
             Map<String, Object> allData = new HashMap<>();
             Map<String, Object> response = new HashMap<>();
             List<Map<String, Object>> allDataList = new ArrayList<>();
-            HttpStatus status = HttpStatus.OK;
+            HttpStatus status = HttpStatus.BAD_REQUEST;
 
             if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
                 allData.put("message", "Datos del token incompletos");
@@ -249,6 +250,27 @@ public class DesbloqueoService {
                                     String IpIngreso = localIP();
                                     sendEmail emailBloq = new sendEmail();
                                     emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora, clienEmail, IpIngreso);
+
+                                    String accesoDipTermi = localIP();
+                                    String accesoMacTermi = dirrecionMac();
+                                    Libs fechaHoraService2 = new Libs(entityManager);
+                                    String accesoFecAcces = fechaHoraService2.obtenerFechaYHora();
+                                    String accesoCodAcces = generarNumberoSerial(1000000, 99999999);
+                                    String accesoDesUsuar = cliacUsuVirtu;
+                                    String accesoCodTacce = "2";
+                                    System.out.println(accesoCodAcces);
+                                    String sqlInsertAccesos =
+                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                    resultInsertAcceso.setParameter("acceso_pas_usuar", "");
+                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                    resultInsertAcceso.executeUpdate();
+
                                     intentosRealizadoTokenFallos = 0;
                                     response.put("success", false);
                                     response.put("message", "Usuario bloqueado por exceder límite de intentos");
@@ -262,7 +284,7 @@ public class DesbloqueoService {
                         }
                     } else {
                         response.put("success", false);
-                        response.put("message", "Token incorrecto. Intentos restantes: " + (4 - intentosRealizadoTokenFallos));
+                        response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
                         response.put("status", "DU08");
                     }
                 }
@@ -343,7 +365,7 @@ public class DesbloqueoService {
                 allData.put("errors", "ERROR EN LA AUTENTICACIÓN");
                 allDataList.add(allData);
                 response.put("AllData", allDataList);
-                return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
 
             return new ResponseEntity<>(response, status);
@@ -404,12 +426,12 @@ public class DesbloqueoService {
                         response.put("AllData", allDataList);
                         return new ResponseEntity<>(response, HttpStatus.OK);
                     }else{
-                        allData.put("message", "La contraseña no coincide con el registro realizado por el usuario. ");
+                        allData.put("message", "La respuesta de seguridad no coincide con el registro realizado por el usuario. ");
                         allData.put("status", "DU10");
                         allData.put("errors", "ERROR EN LA AUTENTICACIÓN");
                         allDataList.add(allData);
                         response.put("AllData", allDataList);
-                        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                     }
         }catch (Exception e){
             Map<String, Object> errorResponse = new HashMap<>();
@@ -420,7 +442,6 @@ public class DesbloqueoService {
             errorData.put("errors", e.getMessage());
             errorList.add(errorData);
             errorResponse.put("AllData", errorList);
-
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
 
         }
@@ -547,6 +568,42 @@ public class DesbloqueoService {
             Query resulValDatosCamPass = entityManager.createNativeQuery(sqlValDatos);
             resulValDatosCamPass.setParameter("codaccess_codigo_temporal", claveTempActual);
             List<Object[]> result = resulValDatosCamPass.getResultList();
+
+
+            String valPassAnterior = "SELECT FIRST 3 virwwwpswdcambio_newpass FROM virwwwpswdcambio " +
+                    "WHERE virwwwpswdcambio_cedula = :cedula " +
+                    "ORDER BY codaccess_fecha DESC";
+
+            Query queryPassAnterior = entityManager.createNativeQuery(valPassAnterior);
+            queryPassAnterior.setParameter("cedula", clienIdenti);
+            List<String> resultPassAnterior = queryPassAnterior.getResultList();
+
+            if (!resultPassAnterior.isEmpty()) {
+                PassSecure passSecure = new PassSecure();
+
+                for (String passAnterior : resultPassAnterior) {
+                    // Limpieza de datos
+                    passAnterior = passAnterior.trim();
+                    if (passAnterior.startsWith("\"") && passAnterior.endsWith("\"")) {
+                        passAnterior = passAnterior.substring(1, passAnterior.length() - 1).trim();
+                    }
+
+                    String passDec = passSecure.decryptPassword(passAnterior);
+                    passDec = passDec.trim();
+                    if (passDec.startsWith("\"") && passDec.endsWith("\"")) {
+                        passDec = passDec.substring(1, passDec.length() - 1).trim();
+                    }
+
+                    if (passDec.equals(cambioContrasena.getPassNew())) {
+                        allData.put("message", "La nueva contraseña no puede ser igual a las contraseñas anteriores, ingrese una nueva.");
+                        allData.put("status", "CC675");
+                        allData.put("errors", "Error al procesar la información para cambio de contraseña");
+                        allDataList.add(allData);
+                        response.put("AllData", allDataList);
+                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    }
+                }
+            }
 
             for (Object[] row3 : result) {
                 String clienCedula = row3[0].toString().trim();
@@ -691,7 +748,7 @@ public class DesbloqueoService {
             Map<String, Object> allData = new HashMap<>();
             Map<String, Object> response = new HashMap<>();
             List<Map<String, Object>> allDataList = new ArrayList<>();
-            HttpStatus status = HttpStatus.OK;
+            HttpStatus status = HttpStatus.BAD_REQUEST;
             if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
                 allData.put("message", "Datos del token incompletos");
                 allData.put("status", "AA022");
@@ -789,6 +846,30 @@ public class DesbloqueoService {
                                     String IpIngreso = localIP();
                                     sendEmail emailBloq = new sendEmail();
                                     emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora, clienEmail, IpIngreso);
+
+                                    String accesoDipTermi = localIP();
+                                    String accesoMacTermi = dirrecionMac();
+                                    Libs fechaHoraService2 = new Libs(entityManager);
+                                    String accesoFecAcces = fechaHoraService2.obtenerFechaYHora();
+                                    String accesoCodAcces = generarNumberoSerial(1000000, 99999999);
+                                    String accesoDesUsuar = cliacUsuVirtu;
+                                    String accesoCodTacce = "2";
+                                    System.out.println(accesoCodAcces);
+                                    String sqlInsertAccesos =
+                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                    resultInsertAcceso.setParameter("acceso_pas_usuar", "");
+                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                    resultInsertAcceso.executeUpdate();
+
+
+
+
                                     intentosRealizadoTokenFallos = 0;
                                     response.put("success", false);
                                     response.put("message", "Usuario bloqueado por exceder límite de intentos");
@@ -802,13 +883,14 @@ public class DesbloqueoService {
                         }
                     } else {
                         response.put("success", false);
-                        response.put("message", "Token incorrecto. Intentos restantes: " + (4 - intentosRealizadoTokenFallos));
+                        response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
                         response.put("status", "AA023");
                     }
                 }
             }else {
                 allData.put("status", "AA026");
                 allData.put("errors", "TOKEN INCORRECTO");
+                response.put("message", "Código temporal incorrecto");
                 allDataList.add(allData);
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -1024,5 +1106,31 @@ public class DesbloqueoService {
         int numeroAleatorio = 1000 + random.nextInt(9000); // Asegura 4 dígitos
         return String.valueOf(numeroAleatorio);
     }
+
+    public static String dirrecionMac() {
+        try {
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            NetworkInterface network = NetworkInterface.getByInetAddress(inetAddress);
+            byte[] mac = network.getHardwareAddress();
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < mac.length; i++) {
+                sb.append(String.format("%02X:", mac[i]));
+            }
+            if (sb.length() > 0) {
+                sb.deleteCharAt(sb.length() - 1);
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "No disponible";
+        }
+    }
+    public static String generarNumberoSerial(int min, int max) {
+        Random random = new Random();
+        int randomNumber = random.nextInt((max - min) + 1) + min;
+        return String.valueOf(randomNumber);
+    }
+
 
 }

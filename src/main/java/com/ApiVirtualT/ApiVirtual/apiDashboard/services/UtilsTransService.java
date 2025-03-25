@@ -1554,8 +1554,8 @@ public class UtilsTransService {
             String numIdentificacion = dto.getNumIdentifiacion();
             String tipoIdentificacion = dto.getTipIdentiCta();
             // Validaciones de datos
-            if (movilInter == null || movilInter.isEmpty() || !movilInter.matches("\\d+")) {
-                response.put("message", "El número de celular solo puede contener números y no puede estar vacío o nulo.");
+            if (movilInter != null && !movilInter.isEmpty() && !movilInter.matches("\\d+")) {
+                response.put("message", "El número de celular solo puede contener números.");
                 response.put("status", "ERROR001");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
@@ -1593,7 +1593,7 @@ public class UtilsTransService {
                 response.put("status", "ERROR007");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            if (benefiCorreo == null || !benefiCorreo.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
+            if (benefiCorreo != null && !benefiCorreo.isEmpty() && !benefiCorreo.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$")) {
                 response.put("message", "El correo del beneficiario tiene una estructura inválida.");
                 response.put("status", "ERROR008");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -1730,6 +1730,182 @@ public class UtilsTransService {
             errorResponse.put("message", "Error interno del servidor");
             errorResponse.put("status", "ERROR001");
             errorResponse.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
+    public ResponseEntity<Map<String, Object>> movRecientesDirectas(HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String codclien = (String) token.getAttribute("numSocio");
+
+            if (clienIdenti == null || clienIdenti.trim().isEmpty()) {
+                response.put("message", "El identificador del cliente no está presente en el token.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            String sql = """
+                CALL movimientosrecientesweb(:codclien, '1');
+                """;
+
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("codclien", codclien);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontraron movimientos recientes.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            List<Map<String, Object>> movimientosList = new ArrayList<>();
+            for (Object[] row : resultados) {
+                Map<String, Object> movimiento = new HashMap<>();
+                movimiento.put("codcliente", row[0].toString().trim());
+                movimiento.put("ctaorigen", row[1].toString().trim());
+                movimiento.put("ctadestino", row[2].toString().trim());
+                movimiento.put("ceduladestino", row[3].toString().trim());
+                movimiento.put("ip", row[4].toString().trim());
+                movimiento.put("titularctadestino", row[5].toString().trim());
+                movimiento.put("valor", Double.parseDouble(row[6].toString().trim()));
+                movimiento.put("fecha", row[7].toString().trim());
+                movimiento.put("codcajas", row[8].toString().trim());
+                movimiento.put("descripcion", row[9].toString().trim());
+                movimiento.put("tipproducto", row[10].toString().trim());
+                movimiento.put("email", row[11].toString().trim());
+                movimiento.put("celular", row[12].toString().trim());
+                movimientosList.add(movimiento);
+            }
+
+            response.put("movimientos", movimientosList);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public ResponseEntity<Map<String, Object>> movRecientesInterbancarias(HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String codclien = (String) token.getAttribute("numSocio");
+
+            if (clienIdenti == null || clienIdenti.trim().isEmpty()) {
+                response.put("message", "El identificador del cliente no está presente en el token.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            String sql = """
+                CALL movimientosrecientesweb(:codclien, '2');
+                """;
+
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("codclien", codclien);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontraron movimientos interbancarios recientes.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            List<Map<String, Object>> movimientosList = new ArrayList<>();
+            for (Object[] row : resultados) {
+                Map<String, Object> movimiento = new HashMap<>();
+                movimiento.put("codcliente", row[0].toString().trim());
+                movimiento.put("ctaorigen", row[1].toString().trim());
+                movimiento.put("ctadestino", row[2].toString().trim());
+                movimiento.put("ceduladestino", row[3].toString().trim());
+                movimiento.put("ip", row[4].toString().trim());
+                movimiento.put("titularctadestino", row[5].toString().trim());
+                movimiento.put("valor", Double.parseDouble(row[6].toString().trim()));
+                movimiento.put("fecha", row[7].toString().trim());
+                movimiento.put("codcajas", row[8].toString().trim());
+                movimiento.put("descripcion", row[9].toString().trim());
+                movimiento.put("tipproducto", row[10].toString().trim());
+                movimiento.put("email", row[11].toString().trim());
+                movimiento.put("celular", row[12].toString().trim());
+                movimientosList.add(movimiento);
+            }
+            response.put("movimientos", movimientosList);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public ResponseEntity<Map<String, Object>> movRecientesTarjetas(HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String codclien = (String) token.getAttribute("numSocio");
+
+            if (clienIdenti == null || clienIdenti.trim().isEmpty()) {
+                response.put("message", "El identificador del cliente no está presente en el token.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            String sql = """
+                CALL movimientosrecientesweb(:codclien, '3');
+                """;
+
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("codclien", codclien);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontraron movimientos recientes de pagos tarjetas de credito. ");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            List<Map<String, Object>> movimientosList = new ArrayList<>();
+            for (Object[] row : resultados) {
+                Map<String, Object> movimiento = new HashMap<>();
+                movimiento.put("codcliente", row[0].toString().trim());
+                movimiento.put("ctaorigen", row[1].toString().trim());
+                movimiento.put("ctadestino", row[2].toString().trim());
+                movimiento.put("ceduladestino", row[3].toString().trim());
+                movimiento.put("ip", row[4].toString().trim());
+                movimiento.put("titularctadestino", row[5].toString().trim());
+                movimiento.put("valor", Double.parseDouble(row[6].toString().trim()));
+                movimiento.put("fecha", row[7].toString().trim());
+                movimiento.put("codcajas", row[8].toString().trim());
+                movimiento.put("descripcion", row[9].toString().trim());
+                movimiento.put("tipproducto", row[10].toString().trim());
+                movimiento.put("email", row[11].toString().trim());
+                movimiento.put("celular", row[12].toString().trim());
+                movimientosList.add(movimiento);
+            }
+            response.put("movimientos", movimientosList);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

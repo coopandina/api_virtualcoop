@@ -48,9 +48,6 @@ public class UtilTransController {
 
 
 
-
-
-
     //Transferencias Directas
     @PostMapping("/listCtaBeneDirectas")
     public ResponseEntity<Map<String, Object>> listBeneDirectos(HttpServletRequest token){
@@ -130,6 +127,29 @@ public class UtilTransController {
     public ResponseEntity<Map<String, Object>> eliminarTarjeta(HttpServletRequest token, @RequestBody InterbancariasDTO dto) {
         return utilsTransService.eliminarTarjetaPj(token, dto);
     }
+
+
+    //Endpoints para movimientos recientes
+    //Recientes movimientos internos
+
+    @PostMapping("/movrecientesdirectas")
+    public ResponseEntity<Map<String, Object>> movrecientesdirectas(HttpServletRequest token){
+        return utilsTransService.movRecientesDirectas(token);
+    }
+
+    @PostMapping("/movrecientesinterban")
+    public ResponseEntity<Map<String, Object>> movRecientesInterbancarias(HttpServletRequest token){
+        return utilsTransService.movRecientesInterbancarias(token);
+    }
+
+    @PostMapping("/movrecientestarjetas")
+    public ResponseEntity<Map<String, Object>> movrecientestarjetas(HttpServletRequest token){
+        return utilsTransService.movRecientesTarjetas(token);
+    }
+
+
+
+
 
 
 }

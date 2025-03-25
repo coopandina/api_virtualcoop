@@ -11,8 +11,9 @@ public class ApiVirtualApplication extends SpringBootServletInitializer {
 		SpringApplication.run(ApiVirtualApplication.class, args);
 	}
 
-	@Override
-	protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
-		return builder.sources(ApiVirtualApplication.class);
-	}
+//	@Override
+//	protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+//		return builder.sources(ApiVirtualApplication.class);
+//	}
+
 }

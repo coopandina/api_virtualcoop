@@ -228,6 +228,27 @@ public class AuthService {
                                                     String IpIngreso = localIP();
                                                     sendEmail emailBloq = new sendEmail();
                                                     emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora,clienEmail, IpIngreso );
+
+                                                    String accesoDipTermi = localIP();
+                                                    String accesoMacTermi = dirrecionMac();
+                                                    Libs fechaHoraService2 = new Libs(entityManager);
+                                                    String accesoFecAcces = fechaHoraService2.obtenerFechaYHora();
+                                                    String accesoCodAcces = generarNumberoSerial(1000000, 99999999);
+                                                    String accesoDesUsuar = cliacUsuVirtu;
+                                                    String accesoCodTacce = "2";
+                                                    System.out.println(accesoCodAcces);
+                                                    String sqlInsertAccesos =
+                                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                                    resultInsertAcceso.setParameter("acceso_pas_usuar", "");
+                                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                                    resultInsertAcceso.executeUpdate();
+
                                                 intentosRealizadoTokenFallos = 0;
                                                 response.put("success", false);
                                                 response.put("message", "Usuario bloqueado por exceder límite de intentos");
@@ -243,8 +264,8 @@ public class AuthService {
                                         }
                                     } else {
                                         response.put("success", false);
-                                        response.put("message", "Token incorrecto. Intentos restantes: " + (4 - intentosRealizadoTokenFallos));
-                                        response.put("status", "AA023");
+                                        response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
+                                        response.put("status", "AA058");
                                         status = HttpStatus.BAD_REQUEST;
 
                                     }
@@ -340,6 +361,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
             response.put("errors", "Usuario no encontrado.");
             return response;
         }
+
         // Consulta para verificar si el usuario está bloqueado
         String sqlBloq = "SELECT cliac_ctr_bloq, clien_ctr_estad FROM cnxcliac JOIN cnxclien ON cliac_ide_clien=clien_ide_clien WHERE cliac_usu_virtu = :username";
         Query resultSQLBloq = entityManager.createNativeQuery(sqlBloq);
@@ -353,17 +375,17 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                 String cliacBloq = row1[0].toString();
                 String clien_estado = row1[1].toString();
                 System.out.println("Consulta BDD= Bloq: " + cliacBloq + ", Estado: " + clien_estado);
-            // Limpieza de datos
-            clienWwwPswrd = clienWwwPswrd.trim();
-            if (clienWwwPswrd.startsWith("\"") && clienWwwPswrd.endsWith("\"")) {
-                clienWwwPswrd = clienWwwPswrd.substring(1, clienWwwPswrd.length() - 1).trim();
-            }
-            PassSecure passSecure = new PassSecure();
-            String passDec = passSecure.decryptPassword(clienWwwPswrd);
-            passDec = passDec.trim();
-            if (passDec.startsWith("\"") && passDec.endsWith("\"")) {
-                passDec = passDec.substring(1, passDec.length() - 1).trim();
-            }
+                // Limpieza de datos
+                clienWwwPswrd = clienWwwPswrd.trim();
+                if (clienWwwPswrd.startsWith("\"") && clienWwwPswrd.endsWith("\"")) {
+                    clienWwwPswrd = clienWwwPswrd.substring(1, clienWwwPswrd.length() - 1).trim();
+                }
+                PassSecure passSecure = new PassSecure();
+                String passDec = passSecure.decryptPassword(clienWwwPswrd);
+                passDec = passDec.trim();
+                if (passDec.startsWith("\"") && passDec.endsWith("\"")) {
+                    passDec = passDec.substring(1, passDec.length() - 1).trim();
+                }
                 String sqlDatosInfoToken = "SELECT clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
                         "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
                 Query resulDatosInfoToken = entityManager.createNativeQuery(sqlDatosInfoToken);
@@ -381,17 +403,31 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                 String clienCodClie1 = row10[1].toString().trim();
                 String token1 = JwtUtil.generateToken(user, clienCedula1, clienCodClie1);
 
-                if(password.length() <= 4){
-                    System.out.println(clienCedula1);
-                    System.out.println(clienCodClie1);
-                    System.out.println(token1);
-                    response.put("cod4digitos", true);
-                    response.put("message", "Debe cambiar su contraseña o es contraseña temporal.");
-                    response.put("status", "AA06");
-                    response.put("errors", "Usuario con contraseña temporal.");
-                    response.put("token", token1);
-                    return response;
+                String sqlValCodTemp = "SELECT codaccess_codigo_temporal FROM vircodaccess WHERE codaccess_cedula = :codaccess_cedula AND codsms_codigo IN (4,5) AND codaccess_estado = '1'";
+                Query resultCodTemop = entityManager.createNativeQuery(sqlValCodTemp);
+                resultCodTemop.setParameter("codaccess_cedula", clienCedula1);
+                List<String> resultList = resultCodTemop.getResultList();
+                String codigotemporal = "";
+                if (!resultList.isEmpty()) {
+                    codigotemporal = resultList.get(0); // Solo accedes al primer elemento si la lista no está vacía
+                    System.err.println(codigotemporal);
+                    if(password.length() == 4 && password.equals(codigotemporal)){
+                        System.out.println(clienCedula1);
+                        System.out.println(clienCodClie1);
+                        System.out.println(token1);
+                        response.put("cod4digitos", true);
+                        response.put("message", "Debe cambiar su contraseña o es contraseña temporal.");
+                        response.put("status", "AA06");
+                        response.put("errors", "Usuario con contraseña temporal.");
+                        response.put("token", token1);
+                        return response;
+                    }
+                }else{
+                    response.put("success", false);
+                    response.put("message", "No posee un codigo temporal activo disponible para realizar esta operacion");
+
                 }
+
                 if (cliacUsuVirtu.equals(user) && passDec.equals(password)) {
                     intentosRealizados = 0;
                     if (!results1.isEmpty()) {
@@ -446,6 +482,27 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                                     resultInsertTokenAcceso.executeUpdate();
                                     tokenExpirationService.programarExpiracionToken(clienCedula, tokenTemp, "1");
 
+                                    String accesoDipTermi = localIP();
+                                    String accesoMacTermi = dirrecionMac();
+                                    Libs fechaHoraServicee = new Libs(entityManager);
+                                    String accesoFecAcces = fechaHoraServicee.obtenerFechaYHora();
+                                    String accesoCodAcces = generarNumberoSerial(1000000, 9999999);
+                                    String accesoDesUsuar = cliacUsuVirtu;
+                                    String accesoPasUsuar = clienWwwPswrd;
+                                    String accesoCodTacce = "1";
+                                    System.out.println(accesoCodAcces);
+                                    String sqlInsertAccesos =
+                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                    resultInsertAcceso.setParameter("acceso_pas_usuar", accesoPasUsuar);
+                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                    resultInsertAcceso.executeUpdate();
+
                                     String token = JwtUtil.generateToken(cliacUsuVirtu, clienCedula, clienCodClie);
                                     response.put("success", true);
                                     response.put("token", token);
@@ -468,6 +525,27 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                             // Ejecutar la actualización
                             int rowsUpdated = resultBloqUser.executeUpdate();
                             if (rowsUpdated > 0) {
+                                String accesoDipTermi = localIP();
+                                String accesoMacTermi = dirrecionMac();
+                                Libs fechaHoraService = new Libs(entityManager);
+                                String accesoFecAcces = fechaHoraService.obtenerFechaYHora();
+                                String accesoCodAcces = generarNumberoSerial(100000, 999999);
+                                String accesoDesUsuar = cliacUsuVirtu;
+                                String accesoPasUsuar = clienWwwPswrd;
+                                String accesoCodTacce = "2";
+                                System.out.println(accesoCodAcces);
+                                String sqlInsertAccesos =
+                                        "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                resultInsertAcceso.setParameter("acceso_pas_usuar", accesoPasUsuar);
+                                resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                resultInsertAcceso.executeUpdate();
+
                                 System.out.println("Usuario bloqueado exitosamente en la base de datos.");
                                 intentosRealizados = 0;
                             } else {
@@ -486,28 +564,6 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                         response.put("status", "AA08");
                         response.put("errors", "Usuario bloqueado por demasiados intentos fallidos.");
                         return response;
-
-                    }else{
-                        String accesoDipTermi = localIP();
-                        String accesoMacTermi = dirrecionMac();
-                        Libs fechaHoraService = new Libs(entityManager);
-                        String accesoFecAcces = fechaHoraService.obtenerFechaYHora();
-                        String accesoCodAcces = generarNumberoSerial(100000, 999999);
-                        String accesoDesUsuar = cliacUsuVirtu;
-                        String accesoPasUsuar = clienWwwPswrd;
-                        String accesoCodTacce = "1";
-                        System.out.println(accesoCodAcces);
-                        String sqlInsertAccesos =
-                                "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
-                        Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
-                        resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
-                        resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
-                        resultInsertAcceso.setParameter("acceso_pas_usuar", accesoPasUsuar);
-                        resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
-                        resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
-                        resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
-                        resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
-                        resultInsertAcceso.executeUpdate();
                     }
                 }
             }

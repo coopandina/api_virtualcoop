@@ -142,7 +142,7 @@ public class TransferenciasDirecService {
                         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                     }
                 } else {
-                    response.put("message", "Token incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
+                    response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
                     response.put("status", "AA023");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -275,9 +275,59 @@ public class TransferenciasDirecService {
                     Object result = queryProcedure.getSingleResult();
                     int returnValue = Integer.parseInt(result.toString());
 
-                    response.put("message", "TRANSFERENCIA REALIZADA CON ÉXITO :) DIFERENTES OFICINAS");
+                    String sqlInfoEnvio = "SELECT ofici_nom_ofici,clien_dir_email,clien_ape_clien,clien_nom_clien, clien_tlf_celul,clien_cod_clien " +
+                            "FROM cnxctadp, cnxclien, cnxofici " +
+                            "WHERE ctadp_cod_ctadp = :ctadp_cod_ctadp " +
+                            "AND ctadp_cod_depos IN (1,2) "+
+                            "AND ctadp_cod_ectad= 1 " +
+                            "AND clien_cod_ofici = ofici_cod_ofici "+
+                            "AND ctadp_cod_clien=clien_cod_clien";
+                    Query queryParamsEnvio = entityManager.createNativeQuery(sqlInfoEnvio);
+                    queryParamsEnvio.setParameter("ctadp_cod_ctadp", ctadpCodCtadpEnvio);
+
+                    String sqlInfoRecibe = "SELECT ofici_nom_ofici,clien_dir_email,clien_ape_clien,clien_nom_clien, clien_tlf_celul,clien_cod_clien " +
+                            "FROM cnxctadp, cnxclien, cnxofici " +
+                            "WHERE ctadp_cod_ctadp = :ctadp_cod_ctadp " +
+                            "AND ctadp_cod_depos IN (1,2) "+
+                            "AND ctadp_cod_ectad= 1" +
+                            "AND clien_cod_ofici = ofici_cod_ofici "+
+                            "AND ctadp_cod_clien=clien_cod_clien";
+                    Query queryParamsRecibe = entityManager.createNativeQuery(sqlInfoRecibe);
+                    queryParamsRecibe.setParameter("ctadp_cod_ctadp", ctadpCodCtadpDestino);
+
+                    List<Object[]> resultsInfoCtaEnvio = queryParamsEnvio.getResultList();
+                    List<Object[]> resultsInfoCtaRecibe = queryParamsRecibe.getResultList();
+
+                    // Procesar datos de la cuenta de envío
+                    if (!resultsInfoCtaEnvio.isEmpty()) {
+                        Object[] rowEnvio = resultsInfoCtaEnvio.get(0); // Solo un resultado esperado
+                        Map<String, String> infCtaEnvio = new HashMap<>();
+                        infCtaEnvio.put("nombreOficina", rowEnvio[0].toString().trim());
+                        infCtaEnvio.put("email", rowEnvio[1].toString().trim());
+                        infCtaEnvio.put("apellido", rowEnvio[2].toString().trim());
+                        infCtaEnvio.put("nombre", rowEnvio[3].toString().trim());
+                        infCtaEnvio.put("telefono", rowEnvio[4].toString().trim());
+                        infCtaEnvio.put("codigoCliente", rowEnvio[5].toString().trim());
+
+                        response.put("informacionCtaEnvio", infCtaEnvio);
+                    }
+                    // Procesar datos de la cuenta de recepción
+                    if (!resultsInfoCtaRecibe.isEmpty()) {
+                        Object[] rowRecibe = resultsInfoCtaRecibe.get(0); // Solo un resultado esperado
+                        Map<String, String> infCtaRecibe = new HashMap<>();
+                        infCtaRecibe.put("nombreOficina", rowRecibe[0].toString().trim());
+                        infCtaRecibe.put("email", rowRecibe[1].toString().trim());
+                        infCtaRecibe.put("apellido", rowRecibe[2].toString().trim());
+                        infCtaRecibe.put("nombre", rowRecibe[3].toString().trim());
+                        infCtaRecibe.put("telefono", rowRecibe[4].toString().trim());
+                        infCtaRecibe.put("codigoCliente", rowRecibe[5].toString().trim());
+
+                        response.put("informacionCtaRecibe", infCtaRecibe);
+                    }
+                    response.put("message", "TRANSFERENCIA REALIZADA CON ÉXITO :)");
                     response.put("numTransferencia", returnValue);
-                    response.put("status", "TRFOK0045");
+                    response.put("status", "DTROK0005");
+
                 }
                 return new ResponseEntity<>(response, HttpStatus.OK);
 
@@ -399,7 +449,7 @@ public class TransferenciasDirecService {
                         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                     }
                 } else {
-                    response.put("message", "Token incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallosInterban));
+                    response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallosInterban));
                     response.put("status", "AA023");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -538,9 +588,6 @@ public class TransferenciasDirecService {
             numeroCtaDestino = numeroCtaDestino.replace("\"", "");
             System.err.println(numeroCtaDestino);
 
-
-
-
             String descripcionTrf = dto.getTxtdettrnsf();
             Float valTransferencia = dto.getValtrans();
             if (numeroCuentaEnvio == null || !numeroCuentaEnvio.matches("\\d{12}")) {
@@ -630,7 +677,7 @@ public class TransferenciasDirecService {
                         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                     }
                 } else {
-                    response.put("message", "Token incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallosInterban));
+                    response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallosInterban));
                     response.put("status", "AA023");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }

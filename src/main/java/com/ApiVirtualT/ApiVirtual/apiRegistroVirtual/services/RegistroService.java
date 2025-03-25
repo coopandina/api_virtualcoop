@@ -164,6 +164,7 @@ public class RegistroService {
                 }
                 else{
                     allData.put("error", "EL usuario ya se encuentra registrado :(");
+                    allData.put("message", "EL usuario ya se encuentra registrado.");
                     allData.put("status", "CU007");
                     allDataList.add(allData);
                     response.put("AllData", allDataList);
@@ -281,15 +282,7 @@ public class RegistroService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            // Validar que las contraseñas coincidan
-            if (!crearUsuario.getUsuario().equals(crearUsuario.getConfirmUsuario())) {
-                allData.put("message", "El usuario y la confirmación del usuario no coinciden.");
-                allData.put("status", "AA29");
-                allData.put("errors", "Las contraseñas deben ser idénticas.");
-                allDataList.add(allData);
-                response.put("AllData", allDataList);
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
+
             // Validar que no estén vacías
             if (crearUsuario.getPassword() == null || crearUsuario.getPassword().trim().isEmpty()) {
                 allData.put("message", "La contraseña no puede estar vacía.");
@@ -357,8 +350,9 @@ public class RegistroService {
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            if (!crearUsuario.getPassword().matches(".*[@#$%&*\\-+!?].*")) {
-                allData.put("message", "La contraseña debe contener al menos un carácter especial permitido (@, #, $, %, &, *, -, +, !, ?).");
+            if (crearUsuario.getPassword() != null && !crearUsuario.getPassword().isEmpty() &&
+                    !crearUsuario.getPassword().matches(".*[@#$%&*\\-+!?._].*")) {
+                allData.put("message", "La contraseña debe contener al menos un carácter especial permitido (@, #, $, %, &, *, -, +, !, ?, ., _)");
                 allData.put("status", "AA37");
                 allData.put("errors", "Falta carácter especial permitido en la contraseña.");
                 allDataList.add(allData);
@@ -366,6 +360,7 @@ public class RegistroService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             String nomUsario = crearUsuario.getUsuario();
+            System.err.println(nomUsario);
             String sqlValUsario = """
                     SELECT COUNT(*) AS total
                     FROM cnxcliac
@@ -373,8 +368,13 @@ public class RegistroService {
                     """;
             Query sqlValUsarios = entityManager.createNativeQuery(sqlValUsario);
             sqlValUsarios.setParameter("cliac_usu_virtu","'" + nomUsario + "'");
-            List<?> resultadosValUsu = sqlValUsarios.getResultList();
-            if(!resultadosValUsu.equals("0")){
+
+            Number countResult = (Number) sqlValUsarios.getSingleResult();
+            int totalUsuarios = countResult.intValue(); // Convertir a entero
+
+            System.err.println("Resultado de la consulta: " + totalUsuarios);
+
+            if(totalUsuarios > 0){
                 allData.put("status", "CU45ERROR");
                 allData.put("errors", "Usuario no disponible !!!");
                 allDataList.add(allData);

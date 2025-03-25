@@ -12,7 +12,8 @@
 	<artifactId>ApiVirtual</artifactId>
 	<version>0.0.1</version>
 	<name>ApiVirtual</name>
-	<packaging>war</packaging>
+<!--	quitar esto para subir a produccion-->
+<!--	<packaging>war</packaging>-->
 	<description>Proyecto ApiVirtualCoop</description>
 	<url/>
 	<licenses>
@@ -73,7 +74,7 @@
 		<dependency>
 			<groupId>ApiVirtualPersonas</groupId>
 			<artifactId>libClavesCore2</artifactId>
-			<version>2.0.0</version>
+			<version>3.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.json</groupId>
@@ -133,11 +134,13 @@
 			<version>5.1.0</version>
 		</dependency>
 
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-tomcat</artifactId>
-			<scope>provided</scope>
-		</dependency>
+<!--		QUITAR EL COMENTARIO AL SUBIR A PRODUCCION-->
+
+<!--		<dependency>-->
+<!--			<groupId>org.springframework.boot</groupId>-->
+<!--			<artifactId>spring-boot-starter-tomcat</artifactId>-->
+<!--			<scope>provided</scope>-->
+<!--		</dependency>-->
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>
