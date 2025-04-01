@@ -7,14 +7,17 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Date;
 
 @Component
 public class JwtUtil {
     private static final Key key = Keys.hmacShaKeyFor("TuClaveSecretaSuperSeguraParaLaApiVirtualT2024".getBytes());
     //private static final long EXPIRATION_TIME = 1000 * 60 * 2; // 2 minutos
-    //private static final long EXPIRATION_TIME = 1000 * 60 * 30; // 30 minutos
-    private static final long EXPIRATION_TIME = 1000 * 60 * 60 * 24; // 1 día
+    private static final long EXPIRATION_TIME = 1000 * 60 * 10; // 10 minutos
+    //private static final long EXPIRATION_TIME = 1000 * 60 * 60 * 24; // 1 día
+
 
     public static String generateToken(String CliacUsuVirtu, String ClienIdenti, String numSocio){
         String subject = CliacUsuVirtu + "," + ClienIdenti + "," + numSocio;  // Concatenar los valores

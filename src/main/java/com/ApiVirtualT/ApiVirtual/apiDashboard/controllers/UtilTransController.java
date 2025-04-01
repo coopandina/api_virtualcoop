@@ -57,6 +57,25 @@ public class UtilTransController {
     public ResponseEntity<Map<String, Object>> informacionCuentas(HttpServletRequest token){
         return utilsTransService.verInfCuenta(token);
     }
+    @PostMapping("/consultadetalledepos")
+    public ResponseEntity<Map<String, Object>> informacionCuentas(@RequestBody VerMovimientoCta dto, HttpServletRequest token){
+        return utilsTransService.consultadetalledepos(dto, token);
+    }
+
+    //Inversiones y creditos
+
+    @PostMapping("/consultadetalleinversiones")
+    public ResponseEntity<Map<String, Object>> consultadetalleinversion(HttpServletRequest token){
+        return utilsTransService.consultadetalleinversiones( token);
+    }
+
+
+    @PostMapping("/consultadetallecredito")
+    public ResponseEntity<Map<String, Object>> consultadetallecredito(HttpServletRequest token){
+        return utilsTransService.consultadetallecreditos( token);
+    }
+
+
 
     @PostMapping("/verMovimientos")
     public ResponseEntity<Map<String, Object>> obtenerMovimientos(@RequestBody VerMovimientoCta dto, HttpServletRequest token) {

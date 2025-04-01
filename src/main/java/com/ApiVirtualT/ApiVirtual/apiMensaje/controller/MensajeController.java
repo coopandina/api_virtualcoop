@@ -22,6 +22,4 @@ public class MensajeController {
         return mensajeService.obtenerMensaje();
     }
 
-
-
 }

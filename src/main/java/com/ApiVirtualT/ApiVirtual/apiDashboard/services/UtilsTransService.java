@@ -782,6 +782,463 @@ public class UtilsTransService {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    public ResponseEntity<Map<String, Object>> consultadetalledepos(VerMovimientoCta dto, HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+            if (clienIdenti == null || clienIdenti.trim().isEmpty()) {
+                response.put("message", "El identificador del cliente no está presente en el token.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String numeroCuenta =  dto.getCtadp_cod_ctadp();
+
+            String sql = """
+                    select ctadp_cod_ctadp,ctadp_sal_dispo,
+                                ctadp_sal_nodis,ctadp_sal_ndchq,
+                                ectad_des_ectad,depos_des_depos 
+                           from cnxctadp,cnxectad,cnxdepos 
+                           where ctadp_cod_ectad=ectad_cod_ectad and 
+                                 ctadp_cod_empre=depos_cod_empre and 
+                                 ctadp_cod_ofici=depos_cod_ofici and 
+                                 ctadp_cod_depos=depos_cod_depos and 
+                                 ctadp_cod_ctadp= :ctadp_cod_ctadp;
+        """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("ctadp_cod_ctadp", numeroCuenta);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontraron cuentas asociadas.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            List<Map<String, Object>> cuentasList = new ArrayList<>();
+            for (Object[] row : resultados) {
+                Map<String, Object> cuenta = new HashMap<>();
+                String ctadp_cod_ctadp = row[0].toString().trim();
+                String ctadp_sal_dispo = row[1].toString().trim();
+                String ctadp_sal_nodis = row[2].toString().trim();
+                String ctadp_sal_ndchq = row[3].toString().trim();
+                String ectad_des_ectad = row[4].toString().trim();
+                String depos_des_depos = row[5].toString().trim();
+
+                Double salDisForma = Double.parseDouble(ctadp_sal_dispo);
+                Double saNoDisForma = Double.parseDouble(ctadp_sal_nodis);
+                Double salCheques = Double.parseDouble(ctadp_sal_ndchq);
+
+
+                String saldoDisFormateado = formatMoneda(salDisForma);
+                String saldoNoDisFormateado = formatMoneda(saNoDisForma);
+                String SalChequesFormateado = formatMoneda(salCheques);
+
+                cuenta.put("cuenta", ctadp_cod_ctadp);
+                cuenta.put("estadoCta", ectad_des_ectad);
+                cuenta.put("descripcion", depos_des_depos);
+                cuenta.put("saldo_disponible", saldoDisFormateado);
+                cuenta.put("salNoDisponibel", saldoNoDisFormateado);
+                cuenta.put("salCheques", SalChequesFormateado);
+                cuentasList.add(cuenta);
+            }
+            response.put("cuentas", cuentasList);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public ResponseEntity<Map<String, Object>> consultadetalleinversiones(HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            if (clienIdenti == null || clienIdenti.trim().isEmpty()) {
+                response.put("message", "El identificador del cliente no está presente en el token.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            String sql = """
+        select inver_cod_inver, inver_fec_venci, tinve_des_tinve
+        from cnxinver, cnxeinve, cnxtinve, cnxclien
+        where inver_cod_empre = :cod_empresa
+        and inver_cod_clien = :numSocio
+        AND clien_ide_clien = :clien_ide_clien
+        and inver_cod_einve in (1,2)
+        and inver_cod_einve = einve_cod_einve
+        and inver_cod_empre = tinve_cod_empre
+        and inver_cod_ofici = tinve_cod_ofici
+        and inver_cod_tinve = tinve_cod_tinve
+        AND inver_cod_clien = clien_cod_clien
+        """;
+
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("cod_empresa", 69);
+            query.setParameter("numSocio", numSocio);
+            query.setParameter("clien_ide_clien", clienIdenti);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontraron inversiones asociadas a esta cuenta.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            List<Map<String, Object>> inversionesList = new ArrayList<>();
+
+            for (Object[] row : resultados) {
+                String inver_cod_inver = row[0].toString().trim();
+                String inver_fec_venci = row[1].toString().trim();
+                String tinve_des_tinve = row[2].toString().trim();
+
+                String sqlDetalle = """
+            select 
+                inver_cod_inver,
+                inver_val_inver,
+                inver_fec_venci,
+                tinve_des_tinve,
+                inver_val_provi,
+                (select sum(dminv_val_dminv)
+                    from cnxdminv, cnxtmovi
+                    where dminv_cod_inver = :inver_cod_inver
+                    and dminv_cod_tmovi = tmovi_cod_tmovi
+                    and tmovi_cod_tasie = '1') as debe,
+                (select sum(dminv_val_dminv)
+                    from cnxdminv, cnxtmovi
+                    where dminv_cod_inver = :inver_cod_inver
+                    and dminv_cod_tmovi = tmovi_cod_tmovi
+                    and tmovi_cod_tasie = '2') as haber,
+                (select sum(prinv_val_prinv)
+                    from cnxprinv, cnxtmovi
+                    where prinv_cod_inver = :inver_cod_inver
+                    and prinv_cod_tmovi = tmovi_cod_tmovi
+                    and tmovi_cod_tasie = '1') as debeinv,
+                (select sum(prinv_val_prinv)
+                    from cnxprinv, cnxtmovi
+                    where prinv_cod_inver = :inver_cod_inver
+                    and prinv_cod_tmovi = tmovi_cod_tmovi
+                    and tmovi_cod_tasie = '2') as haberinv,
+                (select einve_des_einve from cnxeinve
+                    where einve_cod_einve = inver_cod_einve) as einve,
+                (select tpgin_des_tpgin from cnxtpgin
+                    where tpgin_cod_tpgin = inver_cod_tpgin) as des_tpgin
+            from cnxinver, cnxeinve, cnxtinve 
+            where
+                inver_cod_einve = einve_cod_einve and
+                inver_cod_empre = tinve_cod_empre and
+                inver_cod_ofici = tinve_cod_ofici and
+                inver_cod_tinve = tinve_cod_tinve and
+                inver_cod_inver = :inver_cod_inver
+            """;
+
+                Query queryDetalle = entityManager.createNativeQuery(sqlDetalle);
+                queryDetalle.setParameter("inver_cod_inver", inver_cod_inver);
+
+                @SuppressWarnings("unchecked")
+                List<Object[]> detalleResultados = queryDetalle.getResultList();
+
+                Map<String, Object> inversion = new HashMap<>();
+
+                if (!detalleResultados.isEmpty()) {
+                    Object[] detalle = detalleResultados.get(0);
+
+                    // Parsear los valores numéricos
+                    double valorInversion = detalle[1] != null ? Double.parseDouble(detalle[1].toString()) : 0.0;
+                    double valorProvision = detalle[4] != null ? Double.parseDouble(detalle[4].toString()) : 0.0;
+                    double debe = detalle[5] != null ? Double.parseDouble(detalle[5].toString()) : 0.0;
+                    double haber = detalle[6] != null ? Double.parseDouble(detalle[6].toString()) : 0.0;
+                    double debeinv = detalle[7] != null ? Double.parseDouble(detalle[7].toString()) : 0.0;
+                    double haberinv = detalle[8] != null ? Double.parseDouble(detalle[8].toString()) : 0.0;
+
+                    // Realizar los cálculos
+                    double saldo = haber + debe;
+                    double saldoPrinv = haberinv - debeinv;
+                    double intinv = saldoPrinv + valorProvision;
+
+                    inversion.put("codinversion", detalle[0] != null ? detalle[0].toString().trim() : "");
+                    inversion.put("valorinversion", formatMoneda(valorInversion));
+                    inversion.put("fechainversion", detalle[2] != null ? detalle[2].toString().trim() : "");
+                    inversion.put("descinversion", detalle[3] != null ? detalle[3].toString().trim() : "");
+                    inversion.put("valorprovision", formatMoneda(valorProvision));
+                    inversion.put("debe", formatMoneda(debe));
+                    inversion.put("haber", formatMoneda(haber));
+                    inversion.put("debeinv", formatMoneda(debeinv));
+                    inversion.put("haberinv", formatMoneda(haberinv));
+                    inversion.put("einve", detalle[9] != null ? detalle[9].toString().trim() : "");
+                    inversion.put("des_tpgin", detalle[10] != null ? detalle[10].toString().trim() : "");
+                    inversion.put("saldo", formatMoneda(saldo));
+                    inversion.put("saldo_prinv", formatMoneda(saldoPrinv));
+                    inversion.put("interes", formatMoneda(intinv));
+
+                } else {
+                    inversion.put("codinversion", inver_cod_inver);
+                    inversion.put("fechainversion", inver_fec_venci);
+                    inversion.put("descinversion", tinve_des_tinve);
+                    inversion.put("valorinversion", "0.00");
+                    inversion.put("valorprovision", "0.00");
+                    inversion.put("debe", "0.00");
+                    inversion.put("haber", "0.00");
+                    inversion.put("debeinv", "0.00");
+                    inversion.put("haberinv", "0.00");
+                    inversion.put("einve", "");
+                    inversion.put("des_tpgin", "");
+                    inversion.put("saldo", "0.00");
+                    inversion.put("saldo_prinv", "0.00");
+                    inversion.put("interes", "0.00");
+                }
+                inversionesList.add(inversion);
+            }
+            response.put("inversiones", inversionesList);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public ResponseEntity<Map<String, Object>> consultadetallecreditos(HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            if (clienIdenti == null || clienIdenti.trim().isEmpty()) {
+                response.put("message", "El identificador del cliente no está presente en el token.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            // Consulta para obtener la lista básica de créditos del cliente
+            String sqlCreditos = """
+            SELECT credi_cod_credi, credi_fec_venci, tcred_des_tcred, credi_val_credi
+            FROM cnxcredi, cnxecred, cnxtcred
+            WHERE credi_cod_clien = :numSocio
+            AND credi_cod_ecred <> 5
+            AND credi_cod_ecred = ecred_cod_ecred
+            AND credi_cod_tcred = tcred_cod_tcred
+            """;
+
+            Query queryCreditos = entityManager.createNativeQuery(sqlCreditos);
+            queryCreditos.setParameter("numSocio", numSocio);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultadosCreditos = queryCreditos.getResultList();
+
+            if (resultadosCreditos.isEmpty()) {
+                response.put("message", "No se encontraron créditos asociados a este cliente.");
+                response.put("status", "ERROR002");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            List<Map<String, Object>> creditosList = new ArrayList<>();
+
+            for (Object[] row : resultadosCreditos) {
+                String crediCodCredi = row[0].toString().trim();
+                String crediFecVenci = row[1].toString().trim();
+                String tcredDesTcred = row[2].toString().trim();
+                String crediValCredi = row[3].toString().trim();
+
+                // Consulta detallada del crédito
+                String sqlDetalleCredito = """
+                SELECT 
+                    credi_cod_credi as codcred,
+                    credi_val_credi as monto,
+                    credi_tas_credi as tasa,
+                    credi_fec_inici as fec_inici,
+                    credi_cod_ofici as ofici,
+                    credi_fec_venci as fec_venci,
+                    credi_cod_clien as cliente,
+                    credi_cod_solic as solicitud,
+                    (SELECT tcred_des_tcred FROM cnxtcred
+                     WHERE tcred_cod_tcred = credi_cod_tcred) as des_tcred,
+                    (SELECT prdrc_des_prdrc FROM cnxprdrc
+                     WHERE prdrc_cod_prdrc = credi_cod_prdrc) as recupera,
+                    (SELECT SUM(rbdiv_sld_rbdiv) FROM cnxrbdiv
+                     WHERE rbdiv_cod_empre = credi_cod_empre 
+                     AND rbdiv_cod_ofici = credi_cod_ofici 
+                     AND rbdiv_cod_credi = credi_cod_credi 
+                     AND rbdiv_cod_rubro = '1') as suma_saldo,
+                    (SELECT SUM(rbdiv_sld_rbdiv) FROM cnxrbdiv
+                     WHERE rbdiv_cod_empre = credi_cod_empre 
+                     AND rbdiv_cod_ofici = credi_cod_ofici 
+                     AND rbdiv_cod_credi = credi_cod_credi 
+                     AND rbdiv_cod_rubro IN (2,3,5,10)) as interes,
+                    (SELECT SUM(rbdiv_sld_rbdiv) FROM cnxrbdiv
+                     WHERE rbdiv_cod_empre = credi_cod_empre 
+                     AND rbdiv_cod_ofici = credi_cod_ofici 
+                     AND rbdiv_cod_credi = credi_cod_credi 
+                     AND rbdiv_cod_rubro = '4') as int_mora,
+                    (SELECT SUM(rbdiv_sld_rbdiv) FROM cnxrbdiv
+                     WHERE rbdiv_cod_empre = credi_cod_empre 
+                     AND rbdiv_cod_ofici = credi_cod_ofici 
+                     AND rbdiv_cod_credi = credi_cod_credi 
+                     AND rbdiv_cod_rubro NOT IN (1,2,3,4,5,10)) as otros,
+                    (SELECT SUM(rbdiv_val_rbdiv) FROM cnxdivid, cnxrbdiv
+                     WHERE rbdiv_num_divid = divid_num_divid
+                     AND rbdiv_cod_credi = divid_cod_credi
+                     AND rbdiv_cod_credi = credi_cod_credi
+                     AND rbdiv_cod_rubro = 1
+                     AND divid_cod_edivi IN (1,4)) as porvencer,
+                    (SELECT SUM(rbdiv_val_rbdiv) FROM cnxdivid, cnxrbdiv
+                     WHERE rbdiv_num_divid = divid_num_divid
+                     AND rbdiv_cod_credi = divid_cod_credi
+                     AND rbdiv_cod_credi = credi_cod_credi
+                     AND rbdiv_cod_rubro = 1
+                     AND divid_cod_edivi IN (2,5)) as reclasificado,
+                    (SELECT SUM(rbdiv_val_rbdiv) FROM cnxdivid, cnxrbdiv
+                     WHERE rbdiv_num_divid = divid_num_divid
+                     AND rbdiv_cod_credi = divid_cod_credi
+                     AND rbdiv_cod_credi = credi_cod_credi
+                     AND rbdiv_cod_rubro = 1
+                     AND divid_cod_edivi IN (3,6)) as vencido,
+                    TRIM(credi_ape_clien) || ' ' || TRIM(credi_nom_clien) as nombre
+                FROM cnxcredi
+                WHERE credi_cod_credi = :credi_cod_credi
+                """;
+
+                Query queryDetalle = entityManager.createNativeQuery(sqlDetalleCredito);
+                queryDetalle.setParameter("credi_cod_credi", crediCodCredi);
+
+                @SuppressWarnings("unchecked")
+                List<Object[]> detalleResultados = queryDetalle.getResultList();
+
+                Map<String, Object> credito = new HashMap<>();
+                List<Map<String, Object>> garantesList = new ArrayList<>();
+
+                if (!detalleResultados.isEmpty()) {
+                    Object[] detalle = detalleResultados.get(0);
+
+                    // Parsear valores numéricos
+                    double monto = detalle[1] != null ? Double.parseDouble(detalle[1].toString()) : 0.0;
+                    double tasa = detalle[2] != null ? Double.parseDouble(detalle[2].toString()) : 0.0;
+                    double sumaSaldo = detalle[10] != null ? Double.parseDouble(detalle[10].toString()) : 0.0;
+                    double interes = detalle[11] != null ? Double.parseDouble(detalle[11].toString()) : 0.0;
+                    double intMora = detalle[12] != null ? Double.parseDouble(detalle[12].toString()) : 0.0;
+                    double otros = detalle[13] != null ? Double.parseDouble(detalle[13].toString()) : 0.0;
+                    double porVencer = detalle[14] != null ? Double.parseDouble(detalle[14].toString()) : 0.0;
+                    double reclasificado = detalle[15] != null ? Double.parseDouble(detalle[15].toString()) : 0.0;
+                    double vencido = detalle[16] != null ? Double.parseDouble(detalle[16].toString()) : 0.0;
+
+                    // Asignación de valores al crédito
+                    credito.put("codigo_credito", detalle[0] != null ? detalle[0].toString().trim() : "");
+                    credito.put("monto", formatMoneda(monto));
+                    credito.put("tasa", tasa);
+                    credito.put("fecha_inicio", detalle[3] != null ? detalle[3].toString().trim() : "");
+                    credito.put("oficina", detalle[4] != null ? detalle[4].toString().trim() : "");
+                    credito.put("fecha_vencimiento", detalle[5] != null ? detalle[5].toString().trim() : "");
+                    credito.put("cliente", detalle[6] != null ? detalle[6].toString().trim() : "");
+                    credito.put("solicitud", detalle[7] != null ? detalle[7].toString().trim() : "");
+                    credito.put("tipo_credito", detalle[8] != null ? detalle[8].toString().trim() : "");
+                    credito.put("recupera", detalle[9] != null ? detalle[9].toString().trim() : "");
+                    credito.put("saldo", formatMoneda(sumaSaldo));
+                    credito.put("interes", formatMoneda(interes));
+                    credito.put("interes_mora", formatMoneda(intMora));
+                    credito.put("otros", formatMoneda(otros));
+                    credito.put("por_vencer", formatMoneda(porVencer));
+                    credito.put("reclasificado", formatMoneda(reclasificado));
+                    credito.put("vencido", formatMoneda(vencido));
+                    credito.put("nombre_cliente", detalle[17] != null ? detalle[17].toString().trim() : "");
+
+
+                    String solicitud = credito.get("solicitud").toString();
+                    if (!solicitud.isEmpty()) {
+                        String sqlGarantes = """
+                        SELECT 
+                            garan_ape_clien as apellido,
+                            garan_nom_clien as nombre,
+                            garan_cod_clien as cliente,
+                            garan_ide_clien as identidad,
+                            garan_dir_domic as dirdomic,
+                            garan_tlf_domic as tlfdomic,
+                            garan_dir_traba as dirtraba,
+                            garan_tlf_traba as tlftraba
+                        FROM cnxgaran, cnxgrslt
+                        WHERE garan_cod_garan = grslt_cod_garan
+                        AND grslt_cod_solic = :solicitud
+                        """;
+
+                        Query queryGarantes = entityManager.createNativeQuery(sqlGarantes);
+                        queryGarantes.setParameter("solicitud", solicitud);
+
+                        @SuppressWarnings("unchecked")
+                        List<Object[]> resultadosGarantes = queryGarantes.getResultList();
+
+                        for (Object[] garante : resultadosGarantes) {
+                            Map<String, Object> garanteInfo = new HashMap<>();
+                            garanteInfo.put("apellido", garante[0] != null ? garante[0].toString().trim() : "");
+                            garanteInfo.put("nombre", garante[1] != null ? garante[1].toString().trim() : "");
+                            garanteInfo.put("cliente", garante[2] != null ? garante[2].toString().trim() : "");
+                            garanteInfo.put("identidad", garante[3] != null ? garante[3].toString().trim() : "");
+                            garanteInfo.put("direccion_domicilio", garante[4] != null ? garante[4].toString().trim() : "");
+                            garanteInfo.put("telefono_domicilio", garante[5] != null ? garante[5].toString().trim() : "");
+                            garanteInfo.put("direccion_trabajo", garante[6] != null ? garante[6].toString().trim() : "");
+                            garanteInfo.put("telefono_trabajo", garante[7] != null ? garante[7].toString().trim() : "");
+
+                            garantesList.add(garanteInfo);
+                        }
+                    }
+                } else {
+                    // Datos básicos si no hay detalle
+                    credito.put("codigo_credito", crediCodCredi);
+                    credito.put("fecha_vencimiento", crediFecVenci);
+                    credito.put("tipo_credito", tcredDesTcred);
+                    credito.put("monto", formatMoneda(Double.parseDouble(crediValCredi)));
+
+                    credito.put("tasa", "0.00");
+                    credito.put("fecha_inicio", "");
+                    credito.put("oficina", "");
+                    credito.put("cliente", "");
+                    credito.put("solicitud", "");
+                    credito.put("recupera", "");
+                    credito.put("saldo", "0.00");
+                    credito.put("interes", "0.00");
+                    credito.put("interes_mora", "0.00");
+                    credito.put("otros", "0.00");
+                    credito.put("por_vencer", "0.00");
+                    credito.put("reclasificado", "0.00");
+                    credito.put("vencido", "0.00");
+                    credito.put("nombre_cliente", "");
+                }
+
+                // Agregar lista de garantes al crédito (puede estar vacía)
+                credito.put("garantes", garantesList);
+                creditosList.add(credito);
+            }
+
+            // Construir respuesta final
+            response.put("creditos", creditosList);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR003");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
+
     public ResponseEntity<Map<String, Object>> validarCtaTransEstado(HttpServletRequest token, VerMovimientoCta dto) {
         Map<String, Object> response = new HashMap<>();
         try {

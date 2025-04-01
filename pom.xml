@@ -13,7 +13,7 @@
 	<version>0.0.1</version>
 	<name>ApiVirtual</name>
 <!--	quitar esto para subir a produccion-->
-<!--	<packaging>war</packaging>-->
+	<packaging>war</packaging>
 	<description>Proyecto ApiVirtualCoop</description>
 	<url/>
 	<licenses>
@@ -103,25 +103,45 @@
 			<artifactId>javax.mail</artifactId>
 			<version>1.6.1</version>
 		</dependency>
-<!--		<dependency>-->
-<!--			<groupId>org.springframework.boot</groupId>-->
-<!--			<artifactId>spring-boot-starter-mail</artifactId>-->
-<!--			<exclusions>-->
-<!--				<exclusion>-->
-<!--					<groupId>org.eclipse.angus</groupId>-->
-<!--					<artifactId>angus-mail</artifactId>-->
-<!--				</exclusion>-->
-<!--			</exclusions>-->
-<!--		</dependency>-->
+
+
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-logging</artifactId>
+			<artifactId>spring-boot-starter-web</artifactId>
+			<exclusions>
+<!--				<exclusion>-->
+<!--					<groupId>org.springframework.boot</groupId>-->
+<!--					<artifactId>spring-boot-starter-tomcat</artifactId>-->
+<!--				</exclusion>-->
+<!--				<exclusion>-->
+<!--					<groupId>org.springframework.boot</groupId>-->
+<!--					<artifactId>spring-boot-starter-logging</artifactId>-->
+<!--				</exclusion>-->
+			</exclusions>
 		</dependency>
+
+
+		<dependency>
+			<groupId>jakarta.servlet</groupId>
+			<artifactId>jakarta.servlet-api</artifactId>
+			 <scope>provided</scope>
+		</dependency>
+
+
+<!--		comentar esto ya que WildFly tiene su propio logging-->
+<!--		<dependency>-->
+<!--			<groupId>org.springframework.boot</groupId>-->
+<!--			<artifactId>spring-boot-starter-logging</artifactId>-->
+<!--		</dependency>-->
+
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
 			<version>3.3.6</version>
 		</dependency>
+
 
 		<dependency>
 			<groupId>com.ibm.informix</groupId>
@@ -134,13 +154,13 @@
 			<version>5.1.0</version>
 		</dependency>
 
-<!--		QUITAR EL COMENTARIO AL SUBIR A PRODUCCION-->
+<!--		QUITAR EL COMENTARIO AL SUBIR A PRODUCCION TOMCAT-->
 
-<!--		<dependency>-->
-<!--			<groupId>org.springframework.boot</groupId>-->
-<!--			<artifactId>spring-boot-starter-tomcat</artifactId>-->
-<!--			<scope>provided</scope>-->
-<!--		</dependency>-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-tomcat</artifactId>
+			<scope>provided</scope>
+		</dependency>
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>

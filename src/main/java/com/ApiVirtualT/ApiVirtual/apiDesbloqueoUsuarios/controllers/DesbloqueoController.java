@@ -4,7 +4,6 @@ package com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.controllers;
 import com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.DTO.DesbloqueoUser;
 import com.ApiVirtualT.ApiVirtual.apiDesbloqueoUsuarios.services.DesbloqueoService;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.Response;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

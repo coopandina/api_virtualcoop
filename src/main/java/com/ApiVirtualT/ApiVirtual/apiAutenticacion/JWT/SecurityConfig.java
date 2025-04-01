@@ -36,15 +36,19 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList(
+
                 "http://localhost:9090",
                 "http://172.1.0.204:9090",
                 "http://localhost:4173",
                 "http://localhost:8989", "http://pruebasvirtual.coopandina.fin.ec:8989",
                 "http://betavirtualcoop.coopandina.fin.ec:8080",
-                "http://172.1.0.136:8989/"
+                "http://172.1.0.136:8989",
+                "https://virtualcoop.coopandina.fin.ec:80"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
+
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

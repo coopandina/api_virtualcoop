@@ -5,7 +5,6 @@ import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.CambioContrasena;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO.ValidacionDatos;
 import com.ApiVirtualT.ApiVirtual.apiCambioPassword.services.CambioPassService;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.websocket.OnClose;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.controllers.validador.CodSegurdiad;
