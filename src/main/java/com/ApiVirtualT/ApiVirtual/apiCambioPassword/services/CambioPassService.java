@@ -63,14 +63,6 @@ public class CambioPassService {
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
-        if (credencialPassUser.getClienCodClien() == null || !credencialPassUser.getClienCodClien().matches("^[0-9]+$")) {
-            allData.put("message", "Código de cliente inválido");
-            allData.put("status", "DU23");
-            allData.put("errors", "El código de cliente debe contener solo números");
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
         if (credencialPassUser.getTipoIdentificacion() == null || !credencialPassUser.getTipoIdentificacion().matches("^[0-9]+$")) {
             allData.put("message", "Tipo de identificación inválido");
             allData.put("status", "DU24");
@@ -89,7 +81,7 @@ public class CambioPassService {
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialPassUser.getCliacUsuVirtu(), credencialPassUser.getClienIdeClien(), credencialPassUser.getClienCodClien(), credencialPassUser.getFechaNacimiento(), credencialPassUser.getTipoIdentificacion());
+        Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialPassUser.getCliacUsuVirtu(), credencialPassUser.getClienIdeClien(),  credencialPassUser.getFechaNacimiento(), credencialPassUser.getTipoIdentificacion());
         if (Boolean.TRUE.equals(verificarExistenciaUsario.get("success"))) {
             allData.put("message", "Pasa a ingresar codigo temporal 4 digitos.");
             allData.put("status", "DU00");
@@ -108,7 +100,7 @@ public class CambioPassService {
     }
 
 
-    public Map<String,Object> verficaUsuario(String usuario, String identificacionUser, String codigoUsuario,
+    public Map<String,Object> verficaUsuario(String usuario, String identificacionUser,
                                              String fechaNacUsuario, String tipoIdentificacion) {
 
         Map<String, Object> response = new HashMap<>();
@@ -120,17 +112,15 @@ public class CambioPassService {
                             "FROM cnxcliac, cnxclien " +
                             "WHERE cliac_usu_virtu = :cliac_usu_virtu " +
                             "AND cliac_ide_clien = :cliac_ide_clien " +
-                            "AND clien_cod_clien = :clien_cod_clien " +
                             "AND clien_cod_tiden = :clien_cod_tiden " +
                             "AND cliac_ide_clien = clien_ide_clien";
 
             Query queryVerfUsuario = entityManager.createNativeQuery(sqlVerificarUserDesbloq);
             queryVerfUsuario.setParameter("cliac_usu_virtu", usuario);
-            queryVerfUsuario.setParameter("clien_cod_clien", codigoUsuario);
             queryVerfUsuario.setParameter("cliac_ide_clien", identificacionUser);
             queryVerfUsuario.setParameter("clien_cod_tiden", tipoIdentificacion);
 
-            System.err.println(usuario + " " + " " + codigoUsuario + " " + identificacionUser + " " + tipoIdentificacion);
+            System.err.println(usuario + " " + " " + identificacionUser + " " + tipoIdentificacion);
 
             verificarExistenciaUsuario = queryVerfUsuario.getResultList();
 
@@ -153,7 +143,7 @@ public class CambioPassService {
                     System.out.println("Fecha de nacimiento formateada: " + fechaNaciFormateada);
 
                     if (cliacUsuVirtual.equals(usuario) && cliacIdeClien.equals(identificacionUser) && clieCodTien.equals(tipoIdentificacion)
-                            && clienCodigoClien.equals(codigoUsuario) && fechaNaciFormateada.equals(fechaNacUsuario)) {
+                            && fechaNaciFormateada.equals(fechaNacUsuario)) {
                         System.out.println("Los usuarios si coinciden");
                         String CodigoDesbloqueo = codigoAleatorioTemp();
                         Libs fechaHoraService = new Libs(entityManager);
@@ -1015,11 +1005,8 @@ public class CambioPassService {
         }
         if(credencialPassUser.getClienIdeClien() == null || credencialPassUser.getClienIdeClien().isEmpty()){
             return "El numero de indentificacion no puede estar en blanco";
+        }
 
-        }
-        if(credencialPassUser.getClienCodClien() == null || credencialPassUser.getClienCodClien().isEmpty()){
-            return  "El numero de socio no puede estar en blanco";
-        }
         if(credencialPassUser.getFechaNacimiento() == null || credencialPassUser.getFechaNacimiento().isEmpty()
         ){
             return "La fecha de nacimiento no puede estar en blanco";

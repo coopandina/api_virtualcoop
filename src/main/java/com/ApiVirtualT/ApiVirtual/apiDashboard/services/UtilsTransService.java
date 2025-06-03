@@ -208,6 +208,12 @@ public class UtilsTransService {
             String tipoTarjeta = obtenerTipoTarjeta(cta_banco);
             response.put("tipoTarjeta", tipoTarjeta);
 
+            // Detectar banco
+            String banco = detectarBancoEcuador(cta_banco);
+            response.put("banco", banco);
+
+
+
             boolean esValida = validarTarjetaLuhn(cta_banco);
             response.put("esValida", esValida);
 
@@ -1926,6 +1932,49 @@ public class UtilsTransService {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    //aqui
+    public ResponseEntity<Map<String, Object>> eliminarBenefIntrerb(HttpServletRequest token, InterbancariasDTO dto) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+
+            if (cliacUsuVirtu == null || clienIdenti == null || numSocio == null) {
+                response.put("message", "Token con informacion invalida, intente nuevamente.");
+                response.put("status", "ERROR022");
+                response.put("errors", "Error de token");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String cta_banc = dto.getNumTarjeta();
+
+            String sql1 = """
+                        CALL andprc_update_cta_virtual(:id_persona, :cta_banco, 5, '', '');
+                    """;
+            Query queryUpdate = entityManager.createNativeQuery(sql1);
+            queryUpdate.setParameter("id_persona", numSocio);
+            queryUpdate.setParameter("cta_banco", cta_banc);
+            int rowsUpdated = (int) queryUpdate.getSingleResult();
+            if (rowsUpdated > 0) {
+                response.put("message", "Beneficiario eliminado con exito. Registros modificados: " + rowsUpdated);
+                response.put("status", "SUCCESS");
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            } else {
+                response.put("message", "No se encontró ningún registro para eliminar.");
+                response.put("status", "NO_UPDATE");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor");
+            response.put("status", "ERROR001");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
+
     public ResponseEntity<Map<String, Object>> eliminarTarjetaPj(HttpServletRequest token, InterbancariasDTO dto) {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -2613,6 +2662,49 @@ public class UtilsTransService {
             return "Desconocido";
         }
     }
+    private static String detectarBancoEcuador(String numeroTarjeta) {
+        // Diccionario actualizado de BINs para bancos ecuatorianos (2025)
+        Map<String, String[]> binsBancos = new HashMap<>();
+        binsBancos.put("Pichincha", new String[]{"403750", "409851", "416431", "416432", "479931",
+                "521848", "527593", "528851", "530722", "603488"});
+        binsBancos.put("Guayaquil", new String[]{"403751", "409852", "416433", "479932", "485942",
+                "522846", "528852", "530723", "557700", "603489"});
+        binsBancos.put("Produbanco", new String[]{"403752", "409853", "416434", "479933", "485943",
+                "512269", "522847", "528853", "530724", "557701"});
+        binsBancos.put("Pacifico", new String[]{"403753", "409854", "416435", "479934", "485944",
+                "512270", "522848", "528854", "530725", "557702"});
+        binsBancos.put("Bolivariano", new String[]{"403754", "409855", "416436"});
+        binsBancos.put("Internacional", new String[]{"403755", "409856", "416437"});
+        binsBancos.put("Ambato", new String[]{"403756", "409857", "416438"});
+
+        // Verificar cada banco
+        for (Map.Entry<String, String[]> entry : binsBancos.entrySet()) {
+            String banco = entry.getKey();
+            String[] bins = entry.getValue();
+
+            for (String bin : bins) {
+                if (numeroTarjeta.startsWith(bin)) {
+                    return banco;
+                }
+            }
+        }
+
+        // Si no se encuentra en los principales, verificar rangos genéricos
+        if (numeroTarjeta.length() > 0) {
+            char primerDigito = numeroTarjeta.charAt(0);
+            switch (primerDigito) {
+                case '4': return "Visa (Banco no identificado)";
+                case '5': return "Mastercard (Banco no identificado)";
+                case '3': return "American Express/Diners (Banco no identificado)";
+                case '6': return "Discover/UnionPay (Banco no identificado)";
+                default: return "Banco no identificado";
+            }
+        }
+
+        return "Banco no identificado";
+    }
+
+
     private boolean validarTarjetaLuhn(String numeroTarjeta) {
         int suma = 0;
         boolean alternar = false;

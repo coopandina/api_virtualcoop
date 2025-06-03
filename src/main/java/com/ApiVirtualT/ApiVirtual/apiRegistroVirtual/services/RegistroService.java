@@ -229,8 +229,16 @@ public class RegistroService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             // Validar longitud mínima
-            if (crearUsuario.getUsuario().length() < 8) {
-                allData.put("message", "El usuario debe tener al menos 8 caracteres.");
+            if (crearUsuario.getUsuario().length() < 8 || crearUsuario.getUsuario().length() > 30) {
+                allData.put("message", "El usuario debe tener al menos 8 caracteres o maximo 30 caracteres .");
+                allData.put("status", "AA22");
+                allData.put("errors", "Longitud mínima de usuario no cumplida.");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (crearUsuario.getConfirmUsuario().length() < 8 || crearUsuario.getConfirmUsuario().length() > 30) {
+                allData.put("message", "El usuario de configuracion debe tener al menos 8 caracteres o maximo 30 caracteres .");
                 allData.put("status", "AA22");
                 allData.put("errors", "Longitud mínima de usuario no cumplida.");
                 allDataList.add(allData);
@@ -302,9 +310,17 @@ public class RegistroService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
 
-            // Validar longitud mínima
-            if (crearUsuario.getPassword().length() < 8) {
-                allData.put("message", "La contraseña debe tener al menos 8 caracteres.");
+            // Validar longitud mínima y maxima
+            if (crearUsuario.getPassword().length() < 8 || crearUsuario.getPassword().length() >60 ) {
+                allData.put("message", "La contraseña debe tener al menos 8 caracteres y máximo 60 caracteres");
+                allData.put("status", "AA32");
+                allData.put("errors", "Longitud mínima de contraseña no cumplida.");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (crearUsuario.getConfirPassword().length() < 8 || crearUsuario.getConfirPassword().length() >60 ) {
+                allData.put("message", "La contraseña de confirmacion debe tener al menos 8 caracteres y máximo 60 caracteres");
                 allData.put("status", "AA32");
                 allData.put("errors", "Longitud mínima de contraseña no cumplida.");
                 allDataList.add(allData);

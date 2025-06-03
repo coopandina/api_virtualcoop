@@ -128,6 +128,12 @@ public class UtilTransController {
     public ResponseEntity<Map<String, Object>> buscarInstitucionFinan(HttpServletRequest token, @RequestBody VerMovimientoCta dto) {
         return utilsTransService.buscarInstiFinanciera(token, dto);
     }
+    @PostMapping("/eliminarBenefInter")
+    public ResponseEntity<Map<String, Object>> eliminarInterban(HttpServletRequest token, @RequestBody InterbancariasDTO dto) {
+        return utilsTransService.eliminarBenefIntrerb(token, dto);
+    }
+
+
 
     //Pago tarjetas de credito
     @PostMapping("/ctaDebitarTarjetas")

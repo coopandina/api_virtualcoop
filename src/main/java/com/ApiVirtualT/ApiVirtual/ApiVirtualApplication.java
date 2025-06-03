@@ -15,5 +15,4 @@ public class ApiVirtualApplication extends  SpringBootServletInitializer {
 	protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
 		return builder.sources(ApiVirtualApplication.class);
 	}
-
 }

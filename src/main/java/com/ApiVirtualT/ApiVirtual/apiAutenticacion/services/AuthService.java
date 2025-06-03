@@ -403,7 +403,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                 String clienCodClie1 = row10[1].toString().trim();
                 String token1 = JwtUtil.generateToken(user, clienCedula1, clienCodClie1);
 
-                String sqlValCodTemp = "SELECT codaccess_codigo_temporal FROM vircodaccess WHERE codaccess_cedula = :codaccess_cedula AND codsms_codigo IN (4,5) AND codaccess_estado = '1'";
+                String sqlValCodTemp = "SELECT FIRST 1 codaccess_codigo_temporal FROM vircodaccess WHERE codaccess_cedula = :codaccess_cedula AND codsms_codigo IN (4,5) ORDER BY codaccess_id DESC ";
                 Query resultCodTemop = entityManager.createNativeQuery(sqlValCodTemp);
                 resultCodTemop.setParameter("codaccess_cedula", clienCedula1);
                 List<String> resultList = resultCodTemop.getResultList();
@@ -411,7 +411,7 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                 if (!resultList.isEmpty()) {
                     codigotemporal = resultList.get(0); // Solo accedes al primer elemento si la lista no está vacía
                     System.err.println(codigotemporal);
-                    if(password.length() == 4 && password.equals(codigotemporal)){
+                    if(password.length() == 4 || password.equals(codigotemporal)){
                         System.out.println(clienCedula1);
                         System.out.println(clienCodClie1);
                         System.out.println(token1);

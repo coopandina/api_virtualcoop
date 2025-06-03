@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
 		<groupId>org.springframework.boot</groupId>
@@ -12,7 +12,7 @@
 	<artifactId>ApiVirtual</artifactId>
 	<version>0.0.1</version>
 	<name>ApiVirtual</name>
-<!--	quitar esto para subir a produccion-->
+	<!--	quitar esto para subir a produccion-->
 	<packaging>war</packaging>
 	<description>Proyecto ApiVirtualCoop</description>
 	<url/>
@@ -110,14 +110,14 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
 			<exclusions>
-<!--				<exclusion>-->
-<!--					<groupId>org.springframework.boot</groupId>-->
-<!--					<artifactId>spring-boot-starter-tomcat</artifactId>-->
-<!--				</exclusion>-->
-<!--				<exclusion>-->
-<!--					<groupId>org.springframework.boot</groupId>-->
-<!--					<artifactId>spring-boot-starter-logging</artifactId>-->
-<!--				</exclusion>-->
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-tomcat</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 
@@ -125,15 +125,15 @@
 		<dependency>
 			<groupId>jakarta.servlet</groupId>
 			<artifactId>jakarta.servlet-api</artifactId>
-			 <scope>provided</scope>
+			<scope>provided</scope>
 		</dependency>
 
 
-<!--		comentar esto ya que WildFly tiene su propio logging-->
-<!--		<dependency>-->
-<!--			<groupId>org.springframework.boot</groupId>-->
-<!--			<artifactId>spring-boot-starter-logging</artifactId>-->
-<!--		</dependency>-->
+		<!--		comentar esto ya que WildFly tiene su propio logging-->
+		<!--		<dependency>-->
+		<!--			<groupId>org.springframework.boot</groupId>-->
+		<!--			<artifactId>spring-boot-starter-logging</artifactId>-->
+		<!--		</dependency>-->
 
 
 		<dependency>
@@ -154,13 +154,13 @@
 			<version>5.1.0</version>
 		</dependency>
 
-<!--		QUITAR EL COMENTARIO AL SUBIR A PRODUCCION TOMCAT-->
+		<!--		QUITAR EL COMENTARIO AL SUBIR A PRODUCCION TOMCAT-->
 
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-tomcat</artifactId>
-			<scope>provided</scope>
-		</dependency>
+		<!--		<dependency>-->
+		<!--			<groupId>org.springframework.boot</groupId>-->
+		<!--			<artifactId>spring-boot-starter-tomcat</artifactId>-->
+		<!--			<scope>provided</scope>-->
+		<!--		</dependency>-->
 
 		<dependency>
 			<groupId>org.projectlombok</groupId>

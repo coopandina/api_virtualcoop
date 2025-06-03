@@ -3,7 +3,6 @@ package com.ApiVirtualT.ApiVirtual.apiCambioPassword.DTO;
 public class CambioPassUser {
     public String CliacUsuVirtu;
     public String ClienIdeClien;
-    public String ClienCodClien;
     public String FechaNacimiento;
     public String TipoIdentificacion;
 
@@ -23,13 +22,6 @@ public class CambioPassUser {
         ClienIdeClien = clienIdeClien;
     }
 
-    public String getClienCodClien() {
-        return ClienCodClien;
-    }
-
-    public void setClienCodClien(String clienCodClien) {
-        ClienCodClien = clienCodClien;
-    }
 
     public String getFechaNacimiento() {
         return FechaNacimiento;
