@@ -45,7 +45,8 @@ public class SecurityConfig {
                 "http://172.1.0.136:8989",
                 "https://virtualcoop.coopandina.fin.ec:80",
                 "https://virtualcoop.coopandina.fin.ec",
-                "https://virtualcoop.coopandina.fin.ec:8080"
+                "https://virtualcoop.coopandina.fin.ec:8080",
+                "http://localhost:1110"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
