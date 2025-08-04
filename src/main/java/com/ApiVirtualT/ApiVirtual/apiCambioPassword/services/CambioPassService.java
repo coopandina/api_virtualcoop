@@ -894,6 +894,27 @@ public class CambioPassService {
                         // Ejecutar la actualización
                         int rowsUpdated = queryUpdatePassword.executeUpdate();
 
+                        //dstutin actualizar tabla en la que pide cambio de contraseña en el virtual
+                        String sqlUpdatePwd = "UPDATE andcabclav SET cabclav_fec_gener = CURRENT WHERE cabclav_id_clien = :clientId";
+                        Query updatePwdTable = entityManager.createNativeQuery(sqlUpdatePwd);
+                        updatePwdTable.setParameter("clientId", clienIdenti);
+
+                        int rowsUpdatedPsw = updatePwdTable.executeUpdate();
+
+                        if (rowsUpdatedPsw <= 0) {
+                            String sqlInsertPwd =
+                                    "INSERT INTO andcabclav (cabclav_cod_clien, cabclav_id_clien, cabclav_fec_gener, cabclav_cnl_vltoken) " +
+                                            "VALUES (:numSocio, :clienIdenti, CURRENT, 'WEBPERSONAS');";
+                            Query resultInsertPwd = entityManager.createNativeQuery(sqlInsertPwd);
+                            resultInsertPwd.setParameter("numSocio", numSocio);
+                            resultInsertPwd.setParameter("clienIdenti", clienIdenti);
+
+                            resultInsertPwd.executeUpdate();
+
+                        }
+
+
+
                         if (rowsUpdated > 0) {
                             allData.put("message", "CONTRASEÑA ACTUALIZADA CORRECTAMENTE");
                             allData.put("status", "CCOK");

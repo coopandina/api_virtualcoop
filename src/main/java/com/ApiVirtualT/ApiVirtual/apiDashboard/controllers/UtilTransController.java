@@ -1,6 +1,7 @@
 package com.ApiVirtualT.ApiVirtual.apiDashboard.controllers;
 
 import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.InterbancariasDTO;
+import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.ValidarTransDTO;
 import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.VerMovimientoCta;
 import com.ApiVirtualT.ApiVirtual.apiDashboard.services.UtilsTransService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -172,6 +173,13 @@ public class UtilTransController {
         return utilsTransService.movRecientesTarjetas(token);
     }
 
+
+
+    //Endpoint para validaciones antes de transferencia
+    @PostMapping("/verificaciontransferencia")
+    public ResponseEntity<Map<String, Object>> validacionestransferencias(@RequestBody ValidarTransDTO dto, HttpServletRequest token){
+        return utilsTransService.validartrasnferencias(dto, token);
+    }
 
 
 

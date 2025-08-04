@@ -35,87 +35,87 @@ public class AuthService {
 
     /**
      * Funcion para validar login antes de consultar bdd
-        */
+     */
 
     private int intentosRealizados = 0, intentosRealizadoTokenFallos = 0;
     public ResponseEntity<Map<String, Object>> accesslogin( UserCredentials  request) {
         try {
-        Map<String, Object> allData = new HashMap<>();
-        Map<String, Object> response = new HashMap<>();
-        List<Map<String, Object>> allDataList = new ArrayList<>();
-        HttpStatus status = HttpStatus.OK;
+            Map<String, Object> allData = new HashMap<>();
+            Map<String, Object> response = new HashMap<>();
+            List<Map<String, Object>> allDataList = new ArrayList<>();
+            HttpStatus status = HttpStatus.OK;
 
-        String mensajeValBlancos = validarCredencialesBlanco(request);
-        if (mensajeValBlancos != null) {
-            allData.put("message", mensajeValBlancos);
-            allData.put("status", "AA01");
-            allData.put("errors", "No se puede enviar campos con espacios en blanco. ");
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-        String mensajeUsarioNoSerCorreo = usarioNoSerCorreo(request);
-        if (mensajeUsarioNoSerCorreo != null) {
-            allData.put("message", mensajeUsarioNoSerCorreo);
-            allData.put("status", "AA02");
-            allData.put("errors", "No se acepta correos electronicos en el usuario. ");
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-        if (request.getCliacUsuVirtu() != null && request.getCliacUsuVirtu().contains("ñ")) {
-            allData.put("message", "Usuario inválido");
-            allData.put("status", "AA03");
-            allData.put("errors", "No se permite el carácter 'ñ' en el usuario");
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-        if (request.getClienWwwPswrd() != null && request.getClienWwwPswrd().contains("ñ")) {
-            allData.put("message", "Contraseña inválido");
-            allData.put("status", "AA04");
-            allData.put("errors", "No se permite el carácter 'ñ' en la password");
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
+            String mensajeValBlancos = validarCredencialesBlanco(request);
+            if (mensajeValBlancos != null) {
+                allData.put("message", mensajeValBlancos);
+                allData.put("status", "AA01");
+                allData.put("errors", "No se puede enviar campos con espacios en blanco. ");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String mensajeUsarioNoSerCorreo = usarioNoSerCorreo(request);
+            if (mensajeUsarioNoSerCorreo != null) {
+                allData.put("message", mensajeUsarioNoSerCorreo);
+                allData.put("status", "AA02");
+                allData.put("errors", "No se acepta correos electronicos en el usuario. ");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (request.getCliacUsuVirtu() != null && request.getCliacUsuVirtu().contains("ñ")) {
+                allData.put("message", "Usuario inválido");
+                allData.put("status", "AA03");
+                allData.put("errors", "No se permite el carácter 'ñ' en el usuario");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (request.getClienWwwPswrd() != null && request.getClienWwwPswrd().contains("ñ")) {
+                allData.put("message", "Contraseña inválido");
+                allData.put("status", "AA04");
+                allData.put("errors", "No se permite el carácter 'ñ' en la password");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
 
-        List<Object[]> resultados =valida_usuario_id(request.getCliacUsuVirtu());
+            List<Object[]> resultados =valida_usuario_id(request.getCliacUsuVirtu());
 
-        if (resultados.isEmpty()) {
+            if (resultados.isEmpty()) {
 
-            String usuario = request.getCliacUsuVirtu();
-            String contraUser = request.getClienWwwPswrd();
-            Map<String, Object> validacion = valida_LoginBDD(usuario, contraUser);
-            if (Boolean.TRUE.equals(validacion.get("success"))) {
-                allData.put("message", "Acceso concedido.");
-                allData.put("status", "AA00");
-                String token = (String) validacion.get("token");
-                allData.put("token", token);
-                status = HttpStatus.OK;
-            } else if (Boolean.TRUE.equals(validacion.get("cod4digitos"))) {
-                allData.put("message", "Debe cambiar su contraseña o es una contraseña temporal.");
-                allData.put("status", "AA06");
-                allData.put("errors", "Usuario con contraseña temporal.");
-                allData.put("token", validacion.get("token"));
-                status = HttpStatus.BAD_REQUEST;
-            } else {
-                allData.put("message", validacion.get("message"));
-                allData.put("status", validacion.get("status"));
-                allData.put("errors", validacion.get("errors"));
+                String usuario = request.getCliacUsuVirtu();
+                String contraUser = request.getClienWwwPswrd();
+                Map<String, Object> validacion = valida_LoginBDD(usuario, contraUser);
+                if (Boolean.TRUE.equals(validacion.get("success"))) {
+                    allData.put("message", "Acceso concedido.");
+                    allData.put("status", "AA00");
+                    String token = (String) validacion.get("token");
+                    allData.put("token", token);
+                    status = HttpStatus.OK;
+                } else if (Boolean.TRUE.equals(validacion.get("cod4digitos"))) {
+                    allData.put("message", "Debe cambiar su contraseña o es una contraseña temporal.");
+                    allData.put("status", "AA06");
+                    allData.put("errors", "Usuario con contraseña temporal.");
+                    allData.put("token", validacion.get("token"));
+                    status = HttpStatus.BAD_REQUEST;
+                } else {
+                    allData.put("message", validacion.get("message"));
+                    allData.put("status", validacion.get("status"));
+                    allData.put("errors", validacion.get("errors"));
+                    status = HttpStatus.BAD_REQUEST;
+                }
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
+            }else{
+                allData.put("message", "Por favor, no utilice la identificación como si fuera un nombre de usuario.");
+                allData.put("status", "AA017");
+                allData.put("errors", "Se debe utilizar el nombre de usuario en lugar de la cédula de identificación.");
+                allDataList.add(allData);
+                response.put("AllData", allDataList);
                 status = HttpStatus.BAD_REQUEST;
             }
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-        }else{
-            allData.put("message", "Por favor, no utilice la identificación como si fuera un nombre de usuario.");
-            allData.put("status", "AA017");
-            allData.put("errors", "Se debe utilizar el nombre de usuario en lugar de la cédula de identificación.");
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-            status = HttpStatus.BAD_REQUEST;
-        }
-        return new ResponseEntity<>(response, status);
+            return new ResponseEntity<>(response, status);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -170,113 +170,113 @@ public class AuthService {
             List<Object[]> resultsTokenBDD = queryVerificaTokenBDD.getResultList();
             if (!resultsTokenBDD.isEmpty()) {
                 String tokenFromDB = (String) queryVerificaTokenBDD.getSingleResult();
-                            if (tokenFromDB != null && codSeguridad.getCodaccess_codigo_temporal() != null &&
-                                    codSeguridad.getCodaccess_codigo_temporal().equals(tokenFromDB.trim())) {
-                                String sqlDatosCorreoIngreso = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
+                if (tokenFromDB != null && codSeguridad.getCodaccess_codigo_temporal() != null &&
+                        codSeguridad.getCodaccess_codigo_temporal().equals(tokenFromDB.trim())) {
+                    String sqlDatosCorreoIngreso = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
+                            "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
+                    Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
+                    resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
+
+                    List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
+                    for (Object[] row2 : results2) {
+                        String clienApellidos = row2[0].toString().trim();
+                        String clienNombres = row2[1].toString().trim();
+                        String clienEmail = row2[2].toString().trim();
+                        String clienNumero = row2[3].toString().trim();
+                        System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
+                        String IpIngresoLogin = localIP();
+
+                        Libs fechaHoraService = new Libs(entityManager);
+                        String FechaIngresoLogin = fechaHoraService.obtenerFechaYHora();
+                        System.out.println(FechaIngresoLogin);
+
+                        SendSMS sms = new SendSMS();
+                        sms.sendVirtualAccessSMS(clienNumero, "1150", "VIRTUALCOP",FechaIngresoLogin);
+                        sendEmail enviarCorreo = new sendEmail();
+                        enviarCorreo.sendEmailInicioSesion(clienApellidos, clienNombres, FechaIngresoLogin, IpIngresoLogin, clienEmail);
+                        allData.put("status", "AUTHO");
+                        allData.put("message", "Inicio de sesion exitoso!");
+                        allDataList.add(allData);
+                        response.put("AllData", allDataList);
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    }
+
+                    intentosRealizadoTokenFallos = 0;
+                }else{
+                    intentosRealizadoTokenFallos++;
+                    if (intentosRealizadoTokenFallos >= 3) {
+                        String sqlBloqUser = "UPDATE cnxcliac SET cliac_ctr_bloq = :bloqueo WHERE cliac_usu_virtu = :username";
+                        Query resultBloqUser = entityManager.createNativeQuery(sqlBloqUser);
+                        resultBloqUser.setParameter("bloqueo", "0");
+                        resultBloqUser.setParameter("username", cliacUsuVirtu);
+
+                        try {
+                            int rowsUpdated = resultBloqUser.executeUpdate();
+                            if (rowsUpdated > 0) {
+                                String sqlDatosCorreoIngreso = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email FROM cnxclien, cnxcliac " +
                                         "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
                                 Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
                                 resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
+                                Libs fechaHoraService = new Libs(entityManager);
+                                String FechaHora = fechaHoraService.obtenerFechaYHora();
 
                                 List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
                                 for (Object[] row2 : results2) {
                                     String clienApellidos = row2[0].toString().trim();
                                     String clienNombres = row2[1].toString().trim();
                                     String clienEmail = row2[2].toString().trim();
-                                    String clienNumero = row2[3].toString().trim();
-                                    System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
-                                    String IpIngresoLogin = localIP();
+                                    String IpIngreso = localIP();
+                                    sendEmail emailBloq = new sendEmail();
+                                    emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora,clienEmail, IpIngreso );
 
-                                    Libs fechaHoraService = new Libs(entityManager);
-                                    String FechaIngresoLogin = fechaHoraService.obtenerFechaYHora();
-                                    System.out.println(FechaIngresoLogin);
+                                    String accesoDipTermi = localIP();
+                                    String accesoMacTermi = dirrecionMac();
+                                    Libs fechaHoraService2 = new Libs(entityManager);
+                                    String accesoFecAcces = fechaHoraService2.obtenerFechaYHora();
+                                    String accesoCodAcces = generarNumberoSerial(1000000, 99999999);
+                                    String accesoDesUsuar = cliacUsuVirtu;
+                                    String accesoCodTacce = "2";
+                                    System.out.println(accesoCodAcces);
+                                    String sqlInsertAccesos =
+                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                    resultInsertAcceso.setParameter("acceso_pas_usuar", "");
+                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                    resultInsertAcceso.executeUpdate();
 
-                                    SendSMS sms = new SendSMS();
-                                    sms.sendVirtualAccessSMS(clienNumero, "1150", "VIRTUALCOP",FechaIngresoLogin);
-                                    sendEmail enviarCorreo = new sendEmail();
-                                    enviarCorreo.sendEmailInicioSesion(clienApellidos, clienNombres, FechaIngresoLogin, IpIngresoLogin, clienEmail);
-                                    allData.put("status", "AUTHO");
-                                    allData.put("message", "Inicio de sesion exitoso!");
-                                    allDataList.add(allData);
-                                    response.put("AllData", allDataList);
-                                    return new ResponseEntity<>(response, HttpStatus.OK);
+                                    intentosRealizadoTokenFallos = 0;
+                                    response.put("success", false);
+                                    response.put("message", "Usuario bloqueado por exceder límite de intentos");
+                                    response.put("status", "AA025");
+                                    status = HttpStatus.BAD_REQUEST;
                                 }
-
-                                intentosRealizadoTokenFallos = 0;
-                            }else{
-                                    intentosRealizadoTokenFallos++;
-                                    if (intentosRealizadoTokenFallos >= 3) {
-                                    String sqlBloqUser = "UPDATE cnxcliac SET cliac_ctr_bloq = :bloqueo WHERE cliac_usu_virtu = :username";
-                                    Query resultBloqUser = entityManager.createNativeQuery(sqlBloqUser);
-                                    resultBloqUser.setParameter("bloqueo", "0");
-                                    resultBloqUser.setParameter("username", cliacUsuVirtu);
-
-                                        try {
-                                            int rowsUpdated = resultBloqUser.executeUpdate();
-                                            if (rowsUpdated > 0) {
-                                                String sqlDatosCorreoIngreso = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email FROM cnxclien, cnxcliac " +
-                                                        "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
-                                                Query resulDatosCorreoIngreso = entityManager.createNativeQuery(sqlDatosCorreoIngreso);
-                                                resulDatosCorreoIngreso.setParameter("username", cliacUsuVirtu);
-                                                Libs fechaHoraService = new Libs(entityManager);
-                                                String FechaHora = fechaHoraService.obtenerFechaYHora();
-
-                                                List<Object[]> results2 = resulDatosCorreoIngreso.getResultList();
-                                                for (Object[] row2 : results2) {
-                                                    String clienApellidos = row2[0].toString().trim();
-                                                    String clienNombres = row2[1].toString().trim();
-                                                    String clienEmail = row2[2].toString().trim();
-                                                    String IpIngreso = localIP();
-                                                    sendEmail emailBloq = new sendEmail();
-                                                    emailBloq.sendEmailBloqueo(clienApellidos, clienNombres, FechaHora,clienEmail, IpIngreso );
-
-                                                    String accesoDipTermi = localIP();
-                                                    String accesoMacTermi = dirrecionMac();
-                                                    Libs fechaHoraService2 = new Libs(entityManager);
-                                                    String accesoFecAcces = fechaHoraService2.obtenerFechaYHora();
-                                                    String accesoCodAcces = generarNumberoSerial(1000000, 99999999);
-                                                    String accesoDesUsuar = cliacUsuVirtu;
-                                                    String accesoCodTacce = "2";
-                                                    System.out.println(accesoCodAcces);
-                                                    String sqlInsertAccesos =
-                                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
-                                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
-                                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
-                                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
-                                                    resultInsertAcceso.setParameter("acceso_pas_usuar", "");
-                                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
-                                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
-                                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
-                                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
-                                                    resultInsertAcceso.executeUpdate();
-
-                                                intentosRealizadoTokenFallos = 0;
-                                                response.put("success", false);
-                                                response.put("message", "Usuario bloqueado por exceder límite de intentos");
-                                                response.put("status", "AA025");
-                                                status = HttpStatus.BAD_REQUEST;
-                                                }
-                                            }
-                                        } catch (Exception e) {
-                                            response.put("success", false);
-                                            response.put("message", "Error al intentar bloquear el usuario");
-                                            response.put("status", "AA024");
-                                            status = HttpStatus.BAD_REQUEST;
-                                        }
-                                    } else {
-                                        response.put("success", false);
-                                        response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
-                                        response.put("status", "AA058");
-                                        status = HttpStatus.BAD_REQUEST;
-
-                                    }
                             }
+                        } catch (Exception e) {
+                            response.put("success", false);
+                            response.put("message", "Error al intentar bloquear el usuario");
+                            response.put("status", "AA024");
+                            status = HttpStatus.BAD_REQUEST;
+                        }
+                    } else {
+                        response.put("success", false);
+                        response.put("message", "Código temporal incorrecto. Intentos restantes: " + (3 - intentosRealizadoTokenFallos));
+                        response.put("status", "AA058");
+                        status = HttpStatus.BAD_REQUEST;
+
+                    }
+                }
             }else {
                 allData.put("status", "AA027");
                 allData.put("errors", "CODIGO TEMPORAL EXPIRADO, POR EXCEDER LOS 4 MINUTOS");
                 allDataList.add(allData);
                 response.put("AllData", allDataList);
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
+            }
             return new ResponseEntity<>(response, status);
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -341,124 +341,146 @@ public class AuthService {
         return results;
     }
 
-/**
-    * Funcion para validar Login con LA BDD
-        */
+    /**
+     * Funcion para validar Login con LA BDD
+     */
 
-public Map<String, Object> valida_LoginBDD(String user, String password) {
-    Map<String, Object> response = new HashMap<>();
-    try {
-        // Consulta para verificar usuario y contraseña
-        String sql = "SELECT cliac_usu_virtu, clien_www_pswrd FROM cnxcliac, cnxclien " +
-                "WHERE cliac_usu_virtu = :username AND cliac_ide_clien = clien_ide_clien";
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter("username", user);
-        List<Object[]> results = query.getResultList();
-        if (results.isEmpty()) {
-            response.put("success", false);
-            response.put("message", "El usuario no existe o las credenciales son incorrectas.");
-            response.put("status", "AA05");
-            response.put("errors", "Usuario no encontrado.");
-            return response;
-        }
+    public Map<String, Object> valida_LoginBDD(String user, String password) {
+        Map<String, Object> response = new HashMap<>();
+        try {
+            // Consulta para verificar usuario y contraseña
+            String sql = "SELECT cliac_usu_virtu, clien_www_pswrd FROM cnxcliac, cnxclien " +
+                    "WHERE cliac_usu_virtu = :username AND cliac_ide_clien = clien_ide_clien";
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("username", user);
+            List<Object[]> results = query.getResultList();
+            if (results.isEmpty()) {
+                response.put("success", false);
+                response.put("message", "El usuario no existe o las credenciales son incorrectas.");
+                response.put("status", "AA05");
+                response.put("errors", "Usuario no encontrado.");
+                return response;
+            }
 
-        // Consulta para verificar si el usuario está bloqueado
-        String sqlBloq = "SELECT cliac_ctr_bloq, clien_ctr_estad FROM cnxcliac JOIN cnxclien ON cliac_ide_clien=clien_ide_clien WHERE cliac_usu_virtu = :username";
-        Query resultSQLBloq = entityManager.createNativeQuery(sqlBloq);
-        resultSQLBloq.setParameter("username", user);
-        List<Object[]> results1 = resultSQLBloq.getResultList();
-        // Validación de las credenciales
-        for (Object[] row : results) {
-            String cliacUsuVirtu = (String) row[0];
-            String clienWwwPswrd = (String) row[1];
-            for (Object[] row1 : results1) {
-                String cliacBloq = row1[0].toString();
-                String clien_estado = row1[1].toString();
-                System.out.println("Consulta BDD= Bloq: " + cliacBloq + ", Estado: " + clien_estado);
-                // Limpieza de datos
-                clienWwwPswrd = clienWwwPswrd.trim();
-                if (clienWwwPswrd.startsWith("\"") && clienWwwPswrd.endsWith("\"")) {
-                    clienWwwPswrd = clienWwwPswrd.substring(1, clienWwwPswrd.length() - 1).trim();
-                }
-                PassSecure passSecure = new PassSecure();
-                String passDec = passSecure.decryptPassword(clienWwwPswrd);
-                passDec = passDec.trim();
-                if (passDec.startsWith("\"") && passDec.endsWith("\"")) {
-                    passDec = passDec.substring(1, passDec.length() - 1).trim();
-                }
-                String sqlDatosInfoToken = "SELECT clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
-                        "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
-                Query resulDatosInfoToken = entityManager.createNativeQuery(sqlDatosInfoToken);
-                resulDatosInfoToken.setParameter("username", user);
-                List<Object[]> results3 = resulDatosInfoToken.getResultList();
-                // Verificar si hay resultados
-                if (results3.isEmpty()) {
-                    response.put("success", false);
-                    response.put("message", "No se encontraron datos para el usuario");
-                    return response;
-                }
-                // Procesar el primer resultado
-                Object[] row10 = results3.get(0);
-                String clienCedula1 = row10[0].toString().trim();
-                String clienCodClie1 = row10[1].toString().trim();
-                String token1 = JwtUtil.generateToken(user, clienCedula1, clienCodClie1);
+            // Consulta para verificar si el usuario está bloqueado
+            String sqlBloq = "SELECT cliac_ctr_bloq, clien_ctr_estad FROM cnxcliac JOIN cnxclien ON cliac_ide_clien=clien_ide_clien WHERE cliac_usu_virtu = :username";
+            Query resultSQLBloq = entityManager.createNativeQuery(sqlBloq);
+            resultSQLBloq.setParameter("username", user);
+            List<Object[]> results1 = resultSQLBloq.getResultList();
+            // Validación de las credenciales
+            for (Object[] row : results) {
+                String cliacUsuVirtu = (String) row[0];
+                String clienWwwPswrd = (String) row[1];
+                for (Object[] row1 : results1) {
+                    String cliacBloq = row1[0].toString();
+                    String clien_estado = row1[1].toString();
+                    System.out.println("Consulta BDD= Bloq: " + cliacBloq + ", Estado: " + clien_estado);
+                    // Limpieza de datos
 
-                String sqlValCodTemp = "SELECT FIRST 1 codaccess_codigo_temporal FROM vircodaccess WHERE codaccess_cedula = :codaccess_cedula AND codsms_codigo IN (4,5) ORDER BY codaccess_id DESC ";
-                Query resultCodTemop = entityManager.createNativeQuery(sqlValCodTemp);
-                resultCodTemop.setParameter("codaccess_cedula", clienCedula1);
-                List<String> resultList = resultCodTemop.getResultList();
-                String codigotemporal = "";
-                if (!resultList.isEmpty()) {
-                    codigotemporal = resultList.get(0); // Solo accedes al primer elemento si la lista no está vacía
-                    System.err.println(codigotemporal);
-                    if(password.length() == 4 || password.equals(codigotemporal)){
-                        System.out.println(clienCedula1);
-                        System.out.println(clienCodClie1);
-                        System.out.println(token1);
-                        response.put("cod4digitos", true);
-                        response.put("message", "Debe cambiar su contraseña o es contraseña temporal.");
-                        response.put("status", "AA06");
-                        response.put("errors", "Usuario con contraseña temporal.");
-                        response.put("token", token1);
+                    clienWwwPswrd = clienWwwPswrd.trim();
+                    String passDec = "";
+
+                    if(clienWwwPswrd.length() > 8){
+
+                        if (clienWwwPswrd.startsWith("\"") && clienWwwPswrd.endsWith("\"")) {
+                            clienWwwPswrd = clienWwwPswrd.substring(1, clienWwwPswrd.length() - 1).trim();
+                        }
+                        PassSecure passSecure = new PassSecure();
+                        passDec = passSecure.decryptPassword(clienWwwPswrd);
+                        passDec = passDec.trim();
+                        if (passDec.startsWith("\"") && passDec.endsWith("\"")) {
+                            passDec = passDec.substring(1, passDec.length() - 1).trim();
+                        }
+
+                    }
+
+                    String sqlDatosInfoToken = "SELECT clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
+                            "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
+                    Query resulDatosInfoToken = entityManager.createNativeQuery(sqlDatosInfoToken);
+                    resulDatosInfoToken.setParameter("username", user);
+                    List<Object[]> results3 = resulDatosInfoToken.getResultList();
+                    // Verificar si hay resultados
+                    if (results3.isEmpty()) {
+                        response.put("success", false);
+                        response.put("message", "No se encontraron datos para el usuario");
                         return response;
                     }
-                }else{
-                    response.put("success", false);
-                    response.put("message", "No posee un codigo temporal activo disponible para realizar esta operacion");
+                    // Procesar el primer resultado
+                    Object[] row10 = results3.get(0);
+                    String clienCedula1 = row10[0].toString().trim();
+                    String clienCodClie1 = row10[1].toString().trim();
+                    String token1 = JwtUtil.generateToken(user, clienCedula1, clienCodClie1);
 
-                }
-
-                if (cliacUsuVirtu.equals(user) && passDec.equals(password)) {
-                    intentosRealizados = 0;
-                    if (!results1.isEmpty()) {
-                        if ("0".equals(cliacBloq.trim()) || "0".equals(clien_estado.trim())) {
+                    if(password.trim().length() == 4){
+                        String sqlValCodTemp = "SELECT FIRST 1 codaccess_codigo_temporal FROM vircodaccess WHERE codaccess_cedula = :codaccess_cedula AND codsms_codigo IN (4,5) AND codaccess_estado = '1' ORDER BY codaccess_id DESC ";
+                        Query resultCodTemop = entityManager.createNativeQuery(sqlValCodTemp);
+                        resultCodTemop.setParameter("codaccess_cedula", clienCedula1);
+                        List<String> resultList = resultCodTemop.getResultList();
+                        String codigotemporal = "";
+                        if (!resultList.isEmpty()) {
+                            codigotemporal = resultList.get(0); // Solo accedes al primer elemento si la lista no está vacía
+                            System.err.println(codigotemporal);
+                            if(password.trim().length() == 4 && password.equals(codigotemporal)){
+                                System.out.println(clienCedula1);
+                                System.out.println(clienCodClie1);
+                                System.out.println(token1);
+                                response.put("cod4digitos", true);
+                                response.put("message", "Debe cambiar su contraseña o es contraseña temporal.");
+                                response.put("status", "AA06");
+                                response.put("errors", "Usuario con contraseña temporal.");
+                                response.put("token", token1);
+                                return response;
+                            }else{
+                                response.put("success", false);
+                                response.put("message", "Clave temporal incorrecta, intente nuevamente por favor");
+                                response.put("status", "AE006");
+                                response.put("errors", "Usuario con contraseña temporal.");
+                                return response;
+                            }
+                        }else{
                             response.put("success", false);
-                            response.put("message", "El usuario está bloqueado o no está activo.");
-                            response.put("status", "AA07");
-                            response.put("errors", "Usuario bloqueado.");
+                            response.put("message", "No posee un codigo temporal activo disponible para realizar cambio de contraseña o desbloquep de usuario");
+                            response.put("status", "AE07");
+                            response.put("errors", "Usuario con contraseña temporal.");
                             return response;
+
                         }
-                        else{
-                            String sqlDatosCorreo = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
-                                    "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
-                            Query resulDatosCorreo = entityManager.createNativeQuery(sqlDatosCorreo);
-                            resulDatosCorreo.setParameter("username", user);
 
-                            List<Object[]> results2 = resulDatosCorreo.getResultList();
-                            for (Object[] row2 : results2) {
-                                String clienApellidos = row2[0].toString().trim();
-                                String clienNombres = row2[1].toString().trim();
-                                String clienEmail = row2[2].toString().trim();
-                                String clienNumero = row2[3].toString().trim();
-                                String clienCedula = row2[4].toString().trim();
-                                String clienCodClie = row2[5].toString().trim();
-                                System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
-                                Libs fechaHoraService = new Libs(entityManager);
+                    }
 
-                                String FechaIngresoLogin = fechaHoraService.obtenerFechaYHora();
-                                System.out.println(FechaIngresoLogin);
 
-                                String tokenTemp = codigoAleatorioTemp();
+
+                    if (cliacUsuVirtu.equals(user) && passDec.equals(password)) {
+                        intentosRealizados = 0;
+                        if (!results1.isEmpty()) {
+                            if ("0".equals(cliacBloq.trim()) || "0".equals(clien_estado.trim())) {
+                                response.put("success", false);
+                                response.put("message", "El usuario está bloqueado o no está activo.");
+                                response.put("status", "AA07");
+                                response.put("errors", "Usuario bloqueado.");
+                                return response;
+                            }
+                            else{
+                                String sqlDatosCorreo = "SELECT clien_ape_clien, clien_nom_clien, clien_dir_email, clien_tlf_celul, clien_ide_clien, clien_cod_clien FROM cnxclien, cnxcliac " +
+                                        "WHERE cliac_usu_virtu = :username AND clien_ide_clien = cliac_ide_clien";
+                                Query resulDatosCorreo = entityManager.createNativeQuery(sqlDatosCorreo);
+                                resulDatosCorreo.setParameter("username", user);
+
+                                List<Object[]> results2 = resulDatosCorreo.getResultList();
+                                for (Object[] row2 : results2) {
+                                    String clienApellidos = row2[0].toString().trim();
+                                    String clienNombres = row2[1].toString().trim();
+                                    String clienEmail = row2[2].toString().trim();
+                                    String clienNumero = row2[3].toString().trim();
+                                    String clienCedula = row2[4].toString().trim();
+                                    String clienCodClie = row2[5].toString().trim();
+                                    System.out.println("Consulta BDD= APELLIDOS: " + clienApellidos + " NOMBRES: " + clienNombres + " EMAIL: " + clienEmail + " CELULAR " + clienNumero);
+                                    Libs fechaHoraService = new Libs(entityManager);
+
+                                    String FechaIngresoLogin = fechaHoraService.obtenerFechaYHora();
+                                    System.out.println(FechaIngresoLogin);
+
+                                    String tokenTemp = codigoAleatorioTemp();
 
                                     SendSMS smsCodigoTemp = new SendSMS();
                                     smsCodigoTemp.sendSecurityCodeSMS(clienNumero,"1150", tokenTemp, "Iniciar Sesion",FechaIngresoLogin);
@@ -507,80 +529,80 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
                                     response.put("success", true);
                                     response.put("token", token);
                                 }
-                        }
-                    }
-                    response.put("success", true);
-                    response.put("message", "Inicio de sesión exitoso.");
-                    return response;
-                } else {
-                    intentosRealizados++;
-                    System.out.println("Intentos realizados = " + intentosRealizados);
-                    if(intentosRealizados >= 3) {
-                        String sqlBloqUser = "UPDATE cnxcliac SET cliac_ctr_bloq = :bloqueo WHERE cliac_usu_virtu = :username";
-                        Query resultBloqUser = entityManager.createNativeQuery(sqlBloqUser);
-                        resultBloqUser.setParameter("bloqueo", "0");
-                        resultBloqUser.setParameter("username", cliacUsuVirtu);
-                        //MANDAR CORREO DE BLOQUEO
-                        try {
-                            // Ejecutar la actualización
-                            int rowsUpdated = resultBloqUser.executeUpdate();
-                            if (rowsUpdated > 0) {
-                                String accesoDipTermi = localIP();
-                                String accesoMacTermi = dirrecionMac();
-                                Libs fechaHoraService = new Libs(entityManager);
-                                String accesoFecAcces = fechaHoraService.obtenerFechaYHora();
-                                String accesoCodAcces = generarNumberoSerial(100000, 999999);
-                                String accesoDesUsuar = cliacUsuVirtu;
-                                String accesoPasUsuar = clienWwwPswrd;
-                                String accesoCodTacce = "2";
-                                System.out.println(accesoCodAcces);
-                                String sqlInsertAccesos =
-                                        "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
-                                Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
-                                resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
-                                resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
-                                resultInsertAcceso.setParameter("acceso_pas_usuar", accesoPasUsuar);
-                                resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
-                                resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
-                                resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
-                                resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
-                                resultInsertAcceso.executeUpdate();
-
-                                System.out.println("Usuario bloqueado exitosamente en la base de datos.");
-                                intentosRealizados = 0;
-                            } else {
-                                System.out.println("No se encontró al usuario para bloquear.");
                             }
-                        } catch (Exception e) {
-                            System.err.println("Error al bloquear el usuario en la base de datos: " + e.getMessage());
+                        }
+                        response.put("success", true);
+                        response.put("message", "Inicio de sesión exitoso.");
+                        return response;
+                    } else {
+                        intentosRealizados++;
+                        System.out.println("Intentos realizados = " + intentosRealizados);
+                        if(intentosRealizados >= 3) {
+                            String sqlBloqUser = "UPDATE cnxcliac SET cliac_ctr_bloq = :bloqueo WHERE cliac_usu_virtu = :username";
+                            Query resultBloqUser = entityManager.createNativeQuery(sqlBloqUser);
+                            resultBloqUser.setParameter("bloqueo", "0");
+                            resultBloqUser.setParameter("username", cliacUsuVirtu);
+                            //MANDAR CORREO DE BLOQUEO
+                            try {
+                                // Ejecutar la actualización
+                                int rowsUpdated = resultBloqUser.executeUpdate();
+                                if (rowsUpdated > 0) {
+                                    String accesoDipTermi = localIP();
+                                    String accesoMacTermi = dirrecionMac();
+                                    Libs fechaHoraService = new Libs(entityManager);
+                                    String accesoFecAcces = fechaHoraService.obtenerFechaYHora();
+                                    String accesoCodAcces = generarNumberoSerial(100000, 999999);
+                                    String accesoDesUsuar = cliacUsuVirtu;
+                                    String accesoPasUsuar = clienWwwPswrd;
+                                    String accesoCodTacce = "2";
+                                    System.out.println(accesoCodAcces);
+                                    String sqlInsertAccesos =
+                                            "INSERT INTO andacceso VALUES (:acceso_cod_acces, :acceso_des_usuar, :acceso_pas_usuar, :acceso_fec_acces, :acceso_dip_termi, :acceso_mac_termi, :acceso_cod_tacce)";
+                                    Query resultInsertAcceso = entityManager.createNativeQuery(sqlInsertAccesos);
+                                    resultInsertAcceso.setParameter("acceso_cod_acces", accesoCodAcces);
+                                    resultInsertAcceso.setParameter("acceso_des_usuar", accesoDesUsuar);
+                                    resultInsertAcceso.setParameter("acceso_pas_usuar", accesoPasUsuar);
+                                    resultInsertAcceso.setParameter("acceso_fec_acces", accesoFecAcces);
+                                    resultInsertAcceso.setParameter("acceso_dip_termi", accesoDipTermi);
+                                    resultInsertAcceso.setParameter("acceso_mac_termi", accesoMacTermi);
+                                    resultInsertAcceso.setParameter("acceso_cod_tacce", accesoCodTacce);
+                                    resultInsertAcceso.executeUpdate();
+
+                                    System.out.println("Usuario bloqueado exitosamente en la base de datos.");
+                                    intentosRealizados = 0;
+                                } else {
+                                    System.out.println("No se encontró al usuario para bloquear.");
+                                }
+                            } catch (Exception e) {
+                                System.err.println("Error al bloquear el usuario en la base de datos: " + e.getMessage());
+                                response.put("success", false);
+                                response.put("message", "Error al intentar bloquear el usuario.");
+                                response.put("status", "AA10");
+                                response.put("errors", e.getMessage());
+                                return response;
+                            }
                             response.put("success", false);
-                            response.put("message", "Error al intentar bloquear el usuario.");
-                            response.put("status", "AA10");
-                            response.put("errors", e.getMessage());
+                            response.put("message", "Se alcanzó el límite de intentos.");
+                            response.put("status", "AA08");
+                            response.put("errors", "Usuario bloqueado por demasiados intentos fallidos.");
                             return response;
                         }
-                        response.put("success", false);
-                        response.put("message", "Se alcanzó el límite de intentos.");
-                        response.put("status", "AA08");
-                        response.put("errors", "Usuario bloqueado por demasiados intentos fallidos.");
-                        return response;
                     }
                 }
             }
+            response.put("success", false);
+            response.put("message", "Credenciales incorrectas.");
+            response.put("status", "AA12");
+            response.put("errors", "Contraseña incorrecta o usuario no encontrado.");
+            return response;
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("message", "Error interno en el servidor.");
+            response.put("status", "AA99");
+            response.put("errors", e.getMessage());
+            return response;
         }
-        response.put("success", false);
-        response.put("message", "Credenciales incorrectas.");
-        response.put("status", "AA12");
-        response.put("errors", "Contraseña incorrecta o usuario no encontrado.");
-        return response;
-    } catch (Exception e) {
-        response.put("success", false);
-        response.put("message", "Error interno en el servidor.");
-        response.put("status", "AA99");
-        response.put("errors", e.getMessage());
-        return response;
     }
-}
     public static String localIP() {
         try {
             InetAddress inetAddress = InetAddress.getLocalHost();
@@ -621,4 +643,3 @@ public Map<String, Object> valida_LoginBDD(String user, String password) {
         return String.valueOf(numeroAleatorio);
     }
 }
-

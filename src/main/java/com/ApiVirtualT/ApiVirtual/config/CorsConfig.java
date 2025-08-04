@@ -18,6 +18,10 @@ public class CorsConfig implements WebMvcConfigurer {
                         "https://virtualcoop.coopandina.fin.ec:80",
                         "https://virtualcoop.coopandina.fin.ec",
                         "https://virtualcoop.coopandina.fin.ec:8080",
+                        "https://andinadigital.coopandina.fin.ec",
+                        "https://andinadigital.coopandina.fin.ec:80",
+                        "https://andinadigital.coopandina.fin.ec:8080",
+                        "https://andinadigital.coopandina.fin.ec:4173",
                         "http://localhost:1110"
 
                 ) // Orígenes permitidos

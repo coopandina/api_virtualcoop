@@ -61,14 +61,6 @@ public class DesbloqueoService {
             response.put("AllData", allDataList);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
-        if (credencialesDesbloqueo.getClienCodClien() == null || !credencialesDesbloqueo.getClienCodClien().matches("^[0-9]+$")) {
-            allData.put("message", "Código de cliente inválido");
-            allData.put("status", "DU23");
-            allData.put("errors", "El código de cliente debe contener solo números");
-            allDataList.add(allData);
-            response.put("AllData", allDataList);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
 
         if (credencialesDesbloqueo.getTipoIdentificacion() == null || !credencialesDesbloqueo.getTipoIdentificacion().matches("^[0-9]+$")) {
             allData.put("message", "Tipo de identificación inválido");
@@ -89,7 +81,7 @@ public class DesbloqueoService {
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-        Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialesDesbloqueo.getCliacUsuVirtu(), credencialesDesbloqueo.getClienIdeClien(), credencialesDesbloqueo.getClienCodClien(), credencialesDesbloqueo.getFechaNacimiento(), credencialesDesbloqueo.getTipoIdentificacion());
+        Map<String, Object> verificarExistenciaUsario = verficaUsuario(credencialesDesbloqueo.getCliacUsuVirtu(), credencialesDesbloqueo.getClienIdeClien(),  credencialesDesbloqueo.getFechaNacimiento(), credencialesDesbloqueo.getTipoIdentificacion());
         if (Boolean.TRUE.equals(verificarExistenciaUsario.get("success"))) {
             allData.put("message", "´Pasa a ingresar codigo temporal 4 digitos.");
             allData.put("status", "DU00");
@@ -795,16 +787,34 @@ public class DesbloqueoService {
                     if (!passBDD.isEmpty()) {
                         String newPass = (String) passBDD.get(0);
                         System.out.println("virwwwpswdcambio_newpass: " + newPass);
-                        // Construir la sentencia de actualización
                         String sqlUpdatePassword = "UPDATE cnxclien SET clien_www_pswrd = :newPassword " +
                                 "WHERE clien_ide_clien = :clientId";
-                        // Crear la consulta de actualización
                                 Query queryUpdatePassword = entityManager.createNativeQuery(sqlUpdatePassword);
-                        // Configurar los parámetros
+
                                 queryUpdatePassword.setParameter("newPassword", newPass);
                                 queryUpdatePassword.setParameter("clientId", clienIdenti);
-                        // Ejecutar la actualización
+
                                 int rowsUpdated = queryUpdatePassword.executeUpdate();
+
+                        //dstutin actualizar tabla en la que pide cambio de contraseña en el virtual
+                        String sqlUpdatePwd = "UPDATE andcabclav SET cabclav_fec_gener = CURRENT WHERE cabclav_id_clien = :clientId";
+                        Query updatePwdTable = entityManager.createNativeQuery(sqlUpdatePwd);
+                        updatePwdTable.setParameter("clientId", clienIdenti);
+
+                        int rowsUpdatedPsw = updatePwdTable.executeUpdate();
+
+                        if (rowsUpdatedPsw <= 0) {
+                            String sqlInsertPwd =
+                                    "INSERT INTO andcabclav (cabclav_cod_clien, cabclav_id_clien, cabclav_fec_gener, cabclav_cnl_vltoken) " +
+                                            "VALUES (:numSocio, :clienIdenti, CURRENT, 'WEBPERSONAS');";
+                            Query resultInsertPwd = entityManager.createNativeQuery(sqlInsertPwd);
+                            resultInsertPwd.setParameter("numSocio", numSocio);
+                            resultInsertPwd.setParameter("clienIdenti", clienIdenti);
+
+                            resultInsertPwd.executeUpdate();
+
+                        }
+
 
                                 if (rowsUpdated > 0) {
                                     allData.put("message", "CONTRASEÑA ACTUALIZADA CORRECTAMENTE");
@@ -815,6 +825,7 @@ public class DesbloqueoService {
                                 } else {
                                     System.out.println("No se pudo actualizar la contraseña. Verifica los datos.");
                                 }
+
                     } else {
                         System.out.println("No se encontraron resultados para virwwwpswdcambio_newpass.");
                     }
@@ -926,9 +937,6 @@ public class DesbloqueoService {
             return "El numero de indentificacion no puede estar en blanco";
 
         }
-        if(credencialesDesbloqueo.getClienCodClien() == null || credencialesDesbloqueo.getClienCodClien().isEmpty()){
-            return  "El numero de socio no puede estar en blanco";
-        }
         if(credencialesDesbloqueo.getFechaNacimiento() == null || credencialesDesbloqueo.getFechaNacimiento().isEmpty()
         ){
             return "La fecha de nacimiento no puede estar en blanco";
@@ -940,7 +948,7 @@ public class DesbloqueoService {
     }
 
 
-    public Map<String,Object> verficaUsuario(String usuario, String identificacionUser, String codigoUsuario,
+    public Map<String,Object> verficaUsuario(String usuario, String identificacionUser,
                                          String fechaNacUsuario, String tipoIdentificacion) {
 
         Map<String, Object> response = new HashMap<>();
@@ -951,13 +959,11 @@ public class DesbloqueoService {
                             "FROM cnxcliac, cnxclien " +
                             "WHERE cliac_usu_virtu = :cliac_usu_virtu " +
                             "AND cliac_ide_clien = :cliac_ide_clien " +
-                            "AND clien_cod_clien = :clien_cod_clien " +
                             "AND clien_cod_tiden = :clien_cod_tiden " +
                             "AND cliac_ide_clien = clien_ide_clien";
 
             Query queryVerfUsuario = entityManager.createNativeQuery(sqlVerificarUserDesbloq);
             queryVerfUsuario.setParameter("cliac_usu_virtu", usuario);
-            queryVerfUsuario.setParameter("clien_cod_clien", codigoUsuario);
             queryVerfUsuario.setParameter("cliac_ide_clien", identificacionUser);
             queryVerfUsuario.setParameter("clien_cod_tiden", tipoIdentificacion);
 
@@ -982,7 +988,7 @@ public class DesbloqueoService {
                     System.out.println("Fecha de nacimiento formateada: " + fechaNaciFormateada);
 
                     if(cliacUsuVirtual.equals(usuario) && cliacIdeClien.equals(identificacionUser) && clieCodTien.equals(tipoIdentificacion)
-                            && clienCodigoClien.equals(codigoUsuario) && fechaNaciFormateada.equals(fechaNacUsuario)){
+                             && fechaNaciFormateada.equals(fechaNacUsuario)){
                         System.out.println("Los usuarios si coinciden");
                         String CodigoDesbloqueo = codigoAleatorioTemp();
                         Libs fechaHoraService = new Libs(entityManager);

@@ -1,17 +1,17 @@
 package com.ApiVirtualT.ApiVirtual.apiDashboard.services;
 import com.ApiVirtualT.ApiVirtual.apiAutenticacion.services.TokenExpirationService;
 import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.InterbancariasDTO;
+import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.ValidarTransDTO;
 import com.ApiVirtualT.ApiVirtual.apiDashboard.DTO.VerMovimientoCta;
 import com.ApiVirtualT.ApiVirtual.libs.Libs;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import jakarta.servlet.http.HttpServletRequest;
 import libs.PassSecure;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.web.PagedResourcesAssembler;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -570,6 +570,7 @@ public class UtilsTransService {
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
     public ResponseEntity<Map<String, Object>> guardarBenefiDirecto(HttpServletRequest token, VerMovimientoCta dto) {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -617,11 +618,11 @@ public class UtilsTransService {
                 queryUpdate.setParameter("ctaBanco", numeroCuenta);
                 Integer resultado1 = (int) queryUpdate.getSingleResult();
                 if(resultado1 >0 ){
-                    response.put("message", "Beneficiario actualizado exitosamente.");
+                    response.put("message", "Beneficiario agregado exitosamente.");
                     response.put("status", "GBOK001");
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 }else{
-                    response.put("message", "No se pudo actualizar el beneficiario.");
+                    response.put("message", "No se pudo agregar al beneficiario.");
                     response.put("status", "ERROR003");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -862,6 +863,214 @@ public class UtilsTransService {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+
+    //VALIDACIONES DE TRANSFERENCIAS
+
+
+    public ResponseEntity<Map<String, Object>> validartrasnferencias(ValidarTransDTO dto, HttpServletRequest token) {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
+            String clienIdenti = (String) token.getAttribute("ClienIdenti");
+            String numSocio = (String) token.getAttribute("numSocio");
+            if (clienIdenti == null || clienIdenti.trim().isEmpty()) {
+                response.put("message", "El identificador del cliente no está presente en el token.");
+                response.put("status", "ERROR001");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String numeroCuenta = dto.getCtaValidar();
+            Double valtrans = dto.getValTrans();
+
+            //VALIDAR QUE LA CUENTA SE ENCUENTRE ACTIVA
+
+            String sql = """
+                select ctadp_cod_ctadp,ctadp_sal_dispo,
+                            ctadp_sal_nodis,ctadp_sal_ndchq,
+                            ectad_des_ectad,depos_des_depos 
+                       from cnxctadp,cnxectad,cnxdepos 
+                       where ctadp_cod_ectad=ectad_cod_ectad and 
+                             ctadp_cod_empre=depos_cod_empre and 
+                             ctadp_cod_ofici=depos_cod_ofici and 
+                             ctadp_cod_depos=depos_cod_depos and 
+                             ctadp_cod_ectad = '1' and
+                             ctadp_cod_ctadp= :ctadp_cod_ctadp;
+        """;
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("ctadp_cod_ctadp", numeroCuenta);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultados = query.getResultList();
+
+            if (resultados.isEmpty()) {
+                response.put("message", "No se encontro cuenta para poder validar informacion.");
+                response.put("status", "ERROR4521");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            //OBTENER LOS VALORES MAXIMOS DE TRANSFERENCIA DE VIRTUAL
+
+            String sql1 = """
+                   CALL andprc_validaciones_virtual(:cta_socio,1);
+                """;
+            Query query1 = entityManager.createNativeQuery(sql1);
+            query1.setParameter("cta_socio", numeroCuenta);
+
+            List<Object[]> resultados1 = query1.getResultList();
+            if (resultados1.isEmpty()) {
+                response.put("message", "No se encontro cuenta para poder validar limites transferencia");
+                response.put("status", "ERROR1717");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            String titularCta = "";
+            String valorMaxVirtual = "";
+            String valorMaxApp = "";
+
+            for(Object[] row : resultados1) {
+                titularCta = row[0].toString().trim();
+                valorMaxVirtual = row[1].toString().trim();
+                valorMaxApp = row[2].toString().trim();
+            }
+            Double valMaxVirtualParse = Double.parseDouble(valorMaxVirtual);
+
+            if(valtrans > valMaxVirtualParse) {
+                response.put("message", "El monto de la transacción supera el límite máximo permitido de $" + valMaxVirtualParse);
+                response.put("status", "ERROR004");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            // VALIDAR TEMAS DE BLOQUEOS EN CUENTA
+
+            String sql2 = """
+                SELECT first 1 bloctad_cod_estbloc as Estalic,
+                               bloctad_cod_cuent as Cta_Licitud,
+                               bloctad_val_acunu as Valor_Licitud,
+                               bloctad_msj_bloc as Mensaje_bloc
+                FROM andbloctad
+                WHERE bloctad_cod_cuent = :numeroCuenta
+                AND bloctad_cod_estbloc = 0
+                ORDER BY bloctad_fec_rpbloc DESC;
+        """;
+            Query query2 = entityManager.createNativeQuery(sql2);
+            query2.setParameter("numeroCuenta", numeroCuenta);
+
+            List<Object[]> resultados3 = query2.getResultList();
+
+            String mensaje_bloc = "";
+            if(!resultados3.isEmpty()) {
+                for (Object[] row : resultados3) {
+                    mensaje_bloc = row[3].toString().trim();
+                }
+                response.put("message", mensaje_bloc);
+                response.put("status", "ERROR00563");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+
+            String sql33 = """
+    SELECT ctadp_sal_dispo FROM cnxctadp WHERE ctadp_cod_ctadp = :numeroCuenta
+""";
+            Query query33 = entityManager.createNativeQuery(sql33);
+            query33.setParameter("numeroCuenta", numeroCuenta);
+
+        // Cambiamos a getResultList() para BigDecimal
+            List<BigDecimal> resultados111 = query33.getResultList();
+
+            if(!resultados.isEmpty()) {
+                BigDecimal saldoDisponible = resultados111.get(0);
+
+                // Convertir valtrans a BigDecimal para comparación precisa
+                BigDecimal valorTransferencia = BigDecimal.valueOf(valtrans);
+
+                if (valorTransferencia.compareTo(saldoDisponible) > 0) {
+                    response.put("message", "El valor a transferir excede el saldo disponible");
+                    response.put("status", "ERROR004141");
+                    response.put("saldoDisponible", saldoDisponible.doubleValue());
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
+            } else {
+                response.put("message", "Cuenta no encontrada");
+                response.put("status", "ERROR007");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+
+            //OBTENER VALORES MAXIMO DIARIOS
+
+            String sql4 = """
+                   CALL andprc_movimientos_diarios(:cta_socio);
+                """;
+            Query query4 = entityManager.createNativeQuery(sql4);
+            query4.setParameter("cta_socio", numeroCuenta);
+
+            Double valMaxDiarioTrans;
+            try {
+                Object result = query4.getSingleResult();
+                if (result instanceof BigDecimal) {
+                    valMaxDiarioTrans = ((BigDecimal) result).doubleValue();
+                } else if (result instanceof Double) {
+                    valMaxDiarioTrans = (Double) result;
+                } else {
+                    valMaxDiarioTrans = Double.parseDouble(result.toString());
+                }
+            } catch (NoResultException e) {
+                response.put("message", "No se encontraron límites diarios para la cuenta.");
+                response.put("status", "ERROR006");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            // Valor quemado de prueba (opcional, solo para desarrollo)
+             //valMaxDiarioTrans = 2400.20;
+
+            Double valDiario = valtrans + valMaxDiarioTrans;
+
+            if(valDiario > valMaxVirtualParse) {
+                response.put("message", "Has superado tu límite de transacciones diarias de $" + valMaxVirtualParse);
+                response.put("status", "ERROR0521");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+
+            List<Map<String, Object>> cuentasList = new ArrayList<>();
+            for (Object[] row : resultados) {
+                Map<String, Object> cuenta = new HashMap<>();
+                String ctadp_cod_ctadp = row[0].toString().trim();
+                String ctadp_sal_dispo = row[1].toString().trim();
+                String ctadp_sal_nodis = row[2].toString().trim();
+                String ctadp_sal_ndchq = row[3].toString().trim();
+                String ectad_des_ectad = row[4].toString().trim();
+                String depos_des_depos = row[5].toString().trim();
+
+                Double salDisForma = Double.parseDouble(ctadp_sal_dispo);
+                Double saNoDisForma = Double.parseDouble(ctadp_sal_nodis);
+                Double salCheques = Double.parseDouble(ctadp_sal_ndchq);
+
+                String saldoDisFormateado = formatMoneda(salDisForma);
+                String saldoNoDisFormateado = formatMoneda(saNoDisForma);
+                String SalChequesFormateado = formatMoneda(salCheques);
+
+                cuenta.put("cuenta", ctadp_cod_ctadp);
+                cuenta.put("estadoCta", ectad_des_ectad);
+                cuenta.put("descripcion", depos_des_depos);
+                cuenta.put("saldo_disponible", saldoDisFormateado);
+                cuenta.put("salNoDisponibel", saldoNoDisFormateado);
+                cuenta.put("salCheques", SalChequesFormateado);
+
+                cuentasList.add(cuenta);
+            }
+            response.put("cuentas", cuentasList);
+            return new ResponseEntity<>(response, HttpStatus.OK);
+
+        } catch (Exception e) {
+            response.put("message", "Error interno del servidor.");
+            response.put("status", "ERROR00333");
+            response.put("errors", e.getMessage());
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+
 
     public ResponseEntity<Map<String, Object>> consultadetalleinversiones(HttpServletRequest token) {
         Map<String, Object> response = new HashMap<>();
@@ -1889,11 +2098,11 @@ public class UtilsTransService {
                 queryUpdate.setParameter("ctaBanco", numTarjeta);
                 Integer respuestanum = (int) queryUpdate.getSingleResult();
                 if(respuestanum >0){
-                    response.put("message", "Tarjeta actualizada exitosamente.");
+                    response.put("message", "Tarjeta guardada exitosamente.");
                     response.put("status", "GBOK001");
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 }else {
-                    response.put("message", "Error al actualizar el beneficiario.");
+                    response.put("message", "Error al guardar la tarjeta.");
                     response.put("status", "GBOK001");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -2132,23 +2341,9 @@ public class UtilsTransService {
 //            queryCheckInactive.setParameter("ctaBanco", numCuenta);
             List<Object> resultadosCheck = queryCheck.getResultList();
             if (!resultadosCheck.isEmpty()) {
-                String sqlUpdate = "CALL andprc_update_cta_virtual(:clienCodClien, :ctaBanco, 4, :email, :movil );";
-                Query queryUpdate = entityManager.createNativeQuery(sqlUpdate);
-                queryUpdate.setParameter("email", benefiCorreo);
-                queryUpdate.setParameter("movil", movilInter);
-                queryUpdate.setParameter("clienCodClien", numSocio);
-                queryUpdate.setParameter("ctaBanco", numCuenta);
-                Integer resultados = (int) queryUpdate.getSingleResult();
-
-                if(resultados > 0){
-                    response.put("message", "Beneficiario interbancario actualizado exitosamente.");
-                    response.put("status", "GBOK001");
-                    return new ResponseEntity<>(response, HttpStatus.OK);
-                }else{
-                    response.put("message", "Error al actualizar beneficiario interbancario.");
+                    response.put("message", "Beneficiario interbancario ya se encuentra registrado.");
                     response.put("status", "GBOK0499");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
             }else{
                 // Insertar un nuevo beneficiario
                 String sqlInsert = "CALL andprc_inserts_cta_virtual(:clienCodClien,:ctaBanco, 4,:insBeneInter,:tipoCuenta, :nomTitular, :benefiDetalle, :fechaAlta, :userName, :ideBeneficiario, :tipIden, :email, :movil );";
@@ -2171,7 +2366,7 @@ public class UtilsTransService {
                     response.put("status", "GBOK002");
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 }else{
-                    response.put("message", "Beneficiario interbancario registrado exitosamente.");
+                    response.put("message", "No se agrego beneficiario interbancario .");
                     response.put("status", "GBOK155");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -2470,6 +2665,13 @@ public class UtilsTransService {
         }
     }
 
+
+
+
+
+
+
+
     public ResponseEntity<Map<String, Object>> obtenerMovimientos(VerMovimientoCta dto, HttpServletRequest token) {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -2487,6 +2689,7 @@ public class UtilsTransService {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
 
+
             // Validar y convertir las fechas proporcionadas en el DTO
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
             Date fechaDesde = dateFormat.parse(dto.getFechaDesdeCons());
@@ -2498,9 +2701,22 @@ public class UtilsTransService {
 
             Calendar calendarHasta = Calendar.getInstance();
             calendarHasta.setTime(fechaHasta);
+            Date fechaActual = new Date(); // Fecha actual
+
 
             int diffMeses = calendarHasta.get(Calendar.MONTH) - calendarDesde.get(Calendar.MONTH) +
                     (calendarHasta.get(Calendar.YEAR) - calendarDesde.get(Calendar.YEAR)) * 12;
+
+            // Validación 2: Que no se puedan obtener movimientos más allá de 90 días desde la fecha actual
+            Calendar calendarLimite = Calendar.getInstance();
+            calendarLimite.setTime(fechaActual);
+            calendarLimite.add(Calendar.DAY_OF_YEAR, -91);
+
+            if (fechaDesde.before(calendarLimite.getTime())) {
+                response.put("message", "No se pueden consultar movimientos anteriores a 90 días desde la fecha actual.");
+                response.put("status", "ERROR006");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
 
             if (diffMeses > 3) {
                 response.put("message", "El periodo de búsqueda no puede ser mayor a 3 meses.");

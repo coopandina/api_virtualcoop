@@ -12,7 +12,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 import sms.SendSMS;
 import libs.PassSecure;
 
@@ -28,16 +32,34 @@ import java.util.*;
 @Transactional
 @Service
 @RequiredArgsConstructor
+
+
 public class TransferenciasDirecService {
     @PersistenceContext
     private EntityManager entityManager;
     @Autowired
     private TokenExpirationService tokenExpirationService;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     int intentosRealizadoTokenFallos = 0;
     int intentosRealizadoTokenFallosInterban = 0;
 
     public ResponseEntity<Map<String, Object>> srtGrabarDir(HttpServletRequest token, TransferenciasDTO dto) {
+        // Configuración de la transacción
+        DefaultTransactionDefinition def = new DefaultTransactionDefinition();
+        def.setName("TransferenciaTransaction");
+        def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+        TransactionStatus status = transactionManager.getTransaction(def);
         try {
+
+            // 1. Ejecutar procedimiento para establecer locks
+            String callSetLockProcedure = "CALL cnxprc_setea_lockm()";
+            Query lockProcedureQuery = entityManager.createNativeQuery(callSetLockProcedure);
+            lockProcedureQuery.executeUpdate();
+
+
+
             String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
@@ -48,6 +70,7 @@ public class TransferenciasDirecService {
                 response.put("message", "Datos del token incompletos");
                 response.put("status", "AA022");
                 response.put("error", "ERROR EN LA AUTENTICACIÓN");
+                transactionManager.rollback(status);
                 return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
             }
             String numeroCuentaEnvio = dto.getCtaEnvio();
@@ -88,6 +111,7 @@ public class TransferenciasDirecService {
             queryVerificaTokenBDD.setParameter("codaccess_usuario", cliacUsuVirtu);
             queryVerificaTokenBDD.setParameter("codaccess_estado", "1");
 
+
             List<Object[]> resultsTokenBDD = queryVerificaTokenBDD.getResultList();
             if (resultsTokenBDD.isEmpty()) {
                 response.put("message", "CODIGO TEMPORAL EXPIRADO, POR EXCEDER LOS 4 MINUTOS");
@@ -97,6 +121,8 @@ public class TransferenciasDirecService {
             String saldoDisponible = obtenerSaldoDisponible(numeroCuentaEnvio);
             System.out.println(saldoDisponible);
             Float saldoDispoParse = Float.parseFloat(saldoDisponible);
+
+
 
             String tokenFromDB = (String) queryVerificaTokenBDD.getSingleResult();
             if (!tokenFromDB.trim().equals(dto.getCodTempTransDirec())) {
@@ -189,10 +215,6 @@ public class TransferenciasDirecService {
                 String ctadpCodCtadpDestino = resultDestino[2].toString().trim();
 
                 if (clienCodOficiEnvio.equals(clienCodOficiDestino)) {
-                    // Transferencia en la misma oficina
-                    String callSetLockProcedure = "CALL cnxprc_setea_lockm()";
-                    Query lockProcedureQuery = entityManager.createNativeQuery(callSetLockProcedure);
-                    lockProcedureQuery.executeUpdate();
 
                     String callTransferProcedure = "CALL cnxprc_reg_trfwb(:clienCodEmpreEnvio, :clienCodOficiEnvio, '803', " +
                             ":descripcionTrf, :ctadpCodCtadpEnvio, :ctadpCodCtadpDestino, :valTransferencia)";
@@ -329,15 +351,18 @@ public class TransferenciasDirecService {
                     response.put("status", "DTROK0005");
 
                 }
+                transactionManager.commit(status);
                 return new ResponseEntity<>(response, HttpStatus.OK);
 
+            }else{
+                response.put("message", "MONTO INSUFICIENTE PARA REALIZAR LA TRANSFERENCIA ");
+                response.put("error", "ERROR005");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            response.put("message", "MONTO INSUFICIENTE PARA REALIZAR LA TRANSFERENCIA ");
-            response.put("error", "ERROR005");
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
+            transactionManager.rollback(status);
             response.put("message", "Error interno del servidor");
             response.put("status", "ERROR");
             response.put("error", e.getMessage());
@@ -345,7 +370,22 @@ public class TransferenciasDirecService {
         }
     }
     public ResponseEntity<Map<String, Object>> srtGrabarInterban(HttpServletRequest token, TransferenciasDTO dto) {
+        // Configuración de la transacción
+        DefaultTransactionDefinition def = new DefaultTransactionDefinition();
+        def.setName("TransferenciaTransaction");
+        def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+
+        TransactionStatus status = transactionManager.getTransaction(def);
+        Map<String, Object> response1 = new HashMap<>();
+
         try {
+
+            // 1. Ejecutar procedimiento para establecer locks
+            String callSetLockProcedure = "CALL cnxprc_setea_lockm()";
+            Query lockProcedureQuery = entityManager.createNativeQuery(callSetLockProcedure);
+            lockProcedureQuery.executeUpdate();
+
+
             String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
@@ -406,6 +446,7 @@ public class TransferenciasDirecService {
             System.out.println(saldoDisponible);
             Float saldoDispoParse = Float.parseFloat(saldoDisponible);
 
+
             String tokenFromDB = (String) queryVerificaTokenBDD.getSingleResult();
             if (!tokenFromDB.trim().equals(dto.getCodTempTransDirec())) {
                 intentosRealizadoTokenFallosInterban++;
@@ -454,7 +495,9 @@ public class TransferenciasDirecService {
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
             }
-            if (saldoDispoParse >= valTransferencia){
+            double valorsumado = Math.round((0.36 + valTransferencia) * 100.0) / 100.0;
+
+            if (saldoDispoParse >= valorsumado){
                 String sqlQuery = """
                 SELECT ctadp_cod_empre, ctadp_cod_ofici, clien_ape_clien, clien_nom_clien, ctadp_cod_clien, clien_ide_clien 
                 FROM cnxctadp, cnxclien 
@@ -506,9 +549,7 @@ public class TransferenciasDirecService {
                 String titulaCtaRecibe = resultDestino[2].toString().trim();
                 String cedulaCtaRecibe = resultDestino[3].toString().trim();
 
-                    String callSetLockProcedure = "CALL cnxprc_setea_lockm()";
-                    Query lockProcedureQuery = entityManager.createNativeQuery(callSetLockProcedure);
-                    lockProcedureQuery.executeUpdate();
+
 
                     String callTransferProcedure = "CALL cnxprc_reg_spi01_wb(:clienCodEmpreEnvio, :clienCodOficiEnvio,'803',:clienCodEmpreEnvio," +
                             ":clienCodOficiEnvio,:clienCodEnvio," +
@@ -550,17 +591,21 @@ public class TransferenciasDirecService {
                     response.put("message", "TRANSFERENCIA INTERBANCARIA REALIZADA CON ÉXITO !!");
                     response.put("numTransferencia", returnValue);
                     response.put("status", "DTROK0005");
+                    transactionManager.commit(status);
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
                     return grabar2Response;
                 }
+            }else{
+                response.put("message", "MONTO INSUFICIENTE PARA REALIZAR LA TRANSFERENCIA ");
+                response.put("error", "ERROR105");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
-            response.put("message", "MONTO INSUFICIENTE PARA REALIZAR LA TRANSFERENCIA ");
-            response.put("error", "ERROR105");
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+
 
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
+            transactionManager.rollback(status);
             response.put("message", "Error interno del servidor");
             response.put("status", "ERROR");
             response.put("error", e.getMessage());
@@ -568,7 +613,21 @@ public class TransferenciasDirecService {
         }
     }
     public ResponseEntity<Map<String, Object>> srtGrabarPgTarjetas(HttpServletRequest token, TransferenciasDTO dto) {
+        // Configuración de la transacción
+        DefaultTransactionDefinition def = new DefaultTransactionDefinition();
+        def.setName("TransferenciaTransaction");
+        def.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
+
+        TransactionStatus status = transactionManager.getTransaction(def);
+
         try {
+            // 1. Ejecutar procedimiento para establecer locks
+            String callSetLockProcedure = "CALL cnxprc_setea_lockm()";
+            Query lockProcedureQuery = entityManager.createNativeQuery(callSetLockProcedure);
+            lockProcedureQuery.executeUpdate();
+
+
+
             String cliacUsuVirtu = (String) token.getAttribute("CliacUsuVirtu");
             String clienIdenti = (String) token.getAttribute("ClienIdenti");
             String numSocio = (String) token.getAttribute("numSocio");
@@ -682,7 +741,9 @@ public class TransferenciasDirecService {
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
             }
-            if (saldoDispoParse >= valTransferencia){
+
+            double valorsumado = Math.round((0.36 + valTransferencia) * 100.0) / 100.0;
+            if (saldoDispoParse >= valorsumado){
                 String sqlQuery = """
                 SELECT ctadp_cod_empre, ctadp_cod_ofici, clien_ape_clien, clien_nom_clien, ctadp_cod_clien, clien_ide_clien 
                 FROM cnxctadp, cnxclien 
@@ -734,9 +795,6 @@ public class TransferenciasDirecService {
                 String titulaCtaRecibe = resultDestino[2].toString().trim();
                 String cedulaCtaRecibe = resultDestino[3].toString().trim();
 
-                String callSetLockProcedure = "CALL cnxprc_setea_lockm()";
-                Query lockProcedureQuery = entityManager.createNativeQuery(callSetLockProcedure);
-                lockProcedureQuery.executeUpdate();
 
                 String callTransferProcedure = "CALL cnxprc_reg_spi01_wb(:clienCodEmpreEnvio, :clienCodOficiEnvio,'803',:clienCodEmpreEnvio," +
                         ":clienCodOficiEnvio,:clienCodEnvio," +
@@ -783,16 +841,19 @@ public class TransferenciasDirecService {
                     return grabar2Response;
                 }
 
+            }else{
+                response.put("message", "MONTO INSUFICIENTE PARA REALIZAR EL PAGO DE TARJETA ");
+                response.put("error", "ERROR105");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+
             }
-            response.put("message", "MONTO INSUFICIENTE PARA REALIZAR EL PAGO DE TARJETA ");
-            response.put("error", "ERROR105");
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
             response.put("message", "Error interno del servidor");
             response.put("status", "ERROR");
             response.put("error", e.getMessage());
+            transactionManager.rollback(status);
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
