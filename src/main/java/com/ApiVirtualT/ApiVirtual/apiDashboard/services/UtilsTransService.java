@@ -928,10 +928,18 @@ public class UtilsTransService {
             String valorMaxApp = "";
 
             for(Object[] row : resultados1) {
-                titularCta = row[0].toString().trim();
-                valorMaxVirtual = row[1].toString().trim();
-                valorMaxApp = row[2].toString().trim();
+                titularCta = (row[0] != null) ? row[0].toString().trim() : "";
+                valorMaxVirtual = (row[1] != null) ? row[1].toString().trim() : "0";
+                valorMaxApp = (row[2] != null) ? row[2].toString().trim() : "0";
             }
+            // Verificar si todos los valores son cero (como si fuera NULL)
+            if ("0".equals(valorMaxVirtual) && "0".equals(valorMaxApp)) {
+                response.put("message", "La cuenta no tiene configurados montos mínimos/máximos para transferencias");
+                response.put("status", "E05524141");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+
             Double valMaxVirtualParse = Double.parseDouble(valorMaxVirtual);
 
             if(valtrans > valMaxVirtualParse) {
